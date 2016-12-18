@@ -2,6 +2,8 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
+
+#include "detect.h"
 #ifdef FAMILY_UNIX
 #	include <sys/uio.h>
 #	include <unistd.h>

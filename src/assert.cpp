@@ -1,12 +1,14 @@
 #include <stdio.h>
 #include <stdarg.h>
 
-#if defined(FAMILY_WINDOWS)
-#	include <windows.h> // TODO: include own windows headers with defines
-#endif
-
 #include "assert.h"
 #include "defines.h"
+
+#if defined(FAMILY_WINDOWS)
+#	define WIN32_LEAN_AND_MEAN
+#	define _WIN32_WINNT 0x0600
+#	include <windows.h> // TODO: include own windows headers with defines
+#endif
 
 static assert_callback_t g_assert_callback = 0x0;
 static void* g_assert_callback_data = 0x0;

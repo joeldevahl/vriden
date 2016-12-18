@@ -14,6 +14,8 @@
 #include "job_system.h"
 
 #ifdef FAMILY_WINDOWS
+#	define WIN32_LEAN_AND_MEAN
+#	define _WIN32_WINNT 0x0600
 #	include <windows.h>
 #elif defined(FAMILY_UNIX)
 #	include <dlfcn.h>
@@ -46,6 +48,7 @@ struct job_bundle_t
 struct job_queue_slot_t
 {
 	void (*function)(void*);
+	void* padding;
 	uint8_t ALIGN(16) data[1008];
 };
 

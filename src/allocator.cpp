@@ -80,6 +80,8 @@ struct allocator_incheap_t : public allocator_t
 
 void* allocator_incheap_alloc(allocator_t* allocator, size_t count, size_t size, size_t align, const char* file, int line)
 {
+	(void)file;
+	(void)line;
 	allocator_incheap_t* incheap = (allocator_incheap_t*)allocator;
 	uint8_t* res = (uint8_t*)ALIGN_UP(incheap->baseptr + incheap->offset, align);
 	incheap->offset = res - incheap->baseptr + count*size;
@@ -89,12 +91,23 @@ void* allocator_incheap_alloc(allocator_t* allocator, size_t count, size_t size,
 
 void* allocator_incheap_realloc(allocator_t* allocator, void* memory, size_t count, size_t size, size_t align, const char* file, int line)
 {
+	(void)allocator;
+	(void)memory;
+	(void)count;
+	(void)size;
+	(void)align;
+	(void)file;
+	(void)line;
 	ASSERT(0, "Cannot realloc on incheap");
 	return 0x0;
 }
 
 void allocator_incheap_free(allocator_t* allocator, void* memory, const char* file, int line)
 {
+	(void)allocator;
+	(void)memory;
+	(void)file;
+	(void)line;
 	// NOP.
 }
 

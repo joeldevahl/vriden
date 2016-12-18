@@ -61,7 +61,8 @@ struct table_t
 			memset(_vals, 0, capacity * sizeof(val_t));
 			memset(_buckets, 0, num_buckets * sizeof(bucket_t));
 
-			for(int i = capacity - 2; i >= 0; --i)
+			ASSERT(capacity >= 2);
+			for(size_t i = capacity - 2; i >= 0; --i)
 			{
 				_vals[i].next = &_vals[i+1];
 			}

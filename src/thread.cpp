@@ -4,10 +4,13 @@
 
 #if defined(FAMILY_WINDOWS)
 
+#define WIN32_LEAN_AND_MEAN
+#define _WIN32_WINNT 0x0600
 #include <windows.h>
 
 thread_t* thread_create(const char * name, thread_main_func_t func, void * data)
 {
+	(void)name;
 	return (thread_t*)CreateThread(0x0, 0, (LPTHREAD_START_ROUTINE)func, data, 0, 0x0);
 }
 

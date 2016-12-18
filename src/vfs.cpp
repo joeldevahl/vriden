@@ -38,6 +38,7 @@ struct vfs_t
 
 static void vfs_read_request(vfs_t* vfs, allocator_t* allocator, vfs_request_data_t* request)
 {
+	(void)allocator;
 	for(size_t i_mount = 0; i_mount < vfs->mounts.length(); ++i_mount)
 	{
 		vfs_mount_t* mount = &vfs->mounts[i_mount];

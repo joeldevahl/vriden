@@ -5,3 +5,11 @@ Makefile
 vriden
 CMakeFiles
 *.swp
+vriden.dir/
+x64/
+Debug/
+*.vcxproj
+*.filters
+vriden.VC.VC.opendb
+vriden.VC.db
+vriden.sln
