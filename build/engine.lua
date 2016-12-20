@@ -98,7 +98,6 @@ function AddUnitByPath(name, path)
 	Unit = old_unit
 
 	-- TODO: clean up the dependencies between build/engine.lua and steps/patch.lua
-	print(unit.using_table)
 	for _,import in pairs(unit.using_table) do
 		EnsureLoaded(import.unit_name, import.restriction)
 	end
@@ -146,7 +145,6 @@ function Init()
 	end
 
 	local projgen = ScriptArgs["projgen"]
-	print(projgen)
 	if projgen and projgen == "true" then
 		engine.projgen = true
 	end
