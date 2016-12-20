@@ -13,3 +13,5 @@ Debug/
 vriden.VC.VC.opendb
 vriden.VC.db
 vriden.sln
+local/
+.bam/
