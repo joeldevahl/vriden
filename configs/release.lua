@@ -29,6 +29,7 @@ function Config.Execute(self)
 	if family == "windows" then
 		config.settings.cc.flags:Add("/MDd") -- Multithreded debug dll runtime
 		config.settings.cc.flags:Add("/Zi") -- Debug database
+		config.settings.cc.flags:Add("/EHsc") -- Exceptions TODO see if this can be removed
 		config.settings.link.flags:Add("/DEBUG")
 		config.settings.link.flags:Add("/MANIFEST")
 		config.settings.link.flags:Add("/DYNAMICBASE")

@@ -34,6 +34,7 @@ function Config.Execute(self)
 		config.settings.cc.defines:Add("_DEBUG")
 		config.settings.cc.flags:Add("/MDd") -- Multithreded debug dll runtime
 		config.settings.cc.flags:Add("/Z7") -- C7 compatible debug info
+		config.settings.cc.flags:Add("/EHsc") -- Exceptions TODO see if this can be removed
 		config.settings.dll.flags:Add("/DEBUG")
 		config.settings.dll.flags:Add("/MANIFEST")
 		config.settings.dll.flags:Add("/DYNAMICBASE")

@@ -10,6 +10,10 @@ int application_main(application_t* app);
 
 int APIENTRY WinMain(HINSTANCE _In_ hInstance, HINSTANCE _In_opt_ hPrevInstance, LPSTR _In_ lpCmdLine, int _In_ nCmdShow)
 {
+	(void)hInstance;
+	(void)hPrevInstance;
+	(void)nCmdShow;
+
 	application_create_params_t params;
 	application_t* app;
 
