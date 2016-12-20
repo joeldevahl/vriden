@@ -1,5 +1,7 @@
 #pragma once
 
+#if !defined(NO_DETECT_H)
+
 /**
  * Magic detection of platform, compiler and arch
  * Works on my machine
@@ -36,6 +38,8 @@
 #if defined(__amd64__) || defined(__x86_64__)
 #	define ARCH_X86
 #	define ARCH_X86_64
+#endif
+
 #endif
 
 #if defined(__powerpc__) || defined(__ppc__)
