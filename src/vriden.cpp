@@ -1,5 +1,6 @@
 #include "application.h"
 #include "assert.h"
+#include "job_system.h"
 #include "resource_cache.h"
 #include "vfs.h"
 #include "vfs_mount_fs.h"
@@ -9,6 +10,7 @@ struct resource_context_t
 {
 	struct application_t* application;
 	struct window_t* window;
+	struct job_system_t* job_system;
 	struct vfs_t* vfs;
 	struct resource_cache_t* resource_cache;
 };
@@ -25,6 +27,14 @@ int application_main(application_t* application)
 	window_create_params.name = "vriden";
 	window_t* window = window_create(&window_create_params);
 	resource_context.window = window;
+
+	job_system_create_params_t job_system_create_params;
+	job_system_create_params.alloc = &allocator_malloc;
+	job_system_create_params.max_bundles = 1;
+	job_system_create_params.num_threads = 4; // TODO
+	job_system_create_params.num_queue_slots = 128;
+	job_system_t* job_system = job_system_create(&job_system_create_params);
+	resource_context.job_system = job_system;
 
 	vfs_create_params_t vfs_params;
 	vfs_params.allocator = &allocator_malloc;
@@ -57,6 +67,8 @@ int application_main(application_t* application)
 
 	vfs_mount_fs_destroy(vfs_fs_data);
 	vfs_destroy(vfs);
+
+	job_system_destroy(job_system);
 
 	window_destroy(window);
 
