@@ -73,9 +73,8 @@ struct job_system_t
 
 	allocator_t* alloc;
 	array_t<job_thread_t> threads;
-	objpool_t<job_queue_slot_t, uint16_t> queue_slots;
 	objpool_t<job_event_t, uint16_t> events;
-	circular_queue_t<uint16_t> queue;
+	circular_queue_t<job_queue_slot_t> queue;
 	array_t<job_bundle_t> bundles;
 	array_t<job_entry_t> funcs;
 };
@@ -95,9 +94,7 @@ static void job_thread_main(void* ptr)
 
 		if(system->queue.any())
 		{
-			uint16_t id = system->queue.get();
-			job_queue_slot_t job = *system->queue_slots.handle_to_pointer(id); // TODO: copy or keep the slot?
-			system->queue_slots.free_handle(id);
+			job_queue_slot_t job = system->queue.get();
 
 			mutex_unlock(system->mutex);
 			condition_signal(system->cond);
@@ -264,13 +261,11 @@ job_system_result_t job_system_kick_ptr(job_system_t* system, void (*function)(v
 		condition_wait(system->cond, system->mutex);
 	}
 	
-	uint16_t id = system->queue_slots.alloc_handle();
-	job_queue_slot_t* slot = system->queue_slots.handle_to_pointer(id);
-
-	ASSERT(arg_size < sizeof(slot->data), "Too much data in argument");
-	slot->function = function;
-	memcpy(&slot->data, arg, arg_size);
-	system->queue.put(id);
+	job_queue_slot_t slot;
+	ASSERT(arg_size < sizeof(slot.data), "Too much data in argument");
+	slot.function = function;
+	memcpy(&slot.data, arg, arg_size);
+	system->queue.put(slot);
 
 	mutex_unlock(system->mutex);
 	condition_signal(system->cond);
