@@ -2,6 +2,7 @@
 #include "assert.h"
 #include "job_system.h"
 #include "resource_cache.h"
+#include "thread.h"
 #include "vfs.h"
 #include "vfs_mount_fs.h"
 #include "window.h"
@@ -14,6 +15,12 @@ struct resource_context_t
 	struct vfs_t* vfs;
 	struct resource_cache_t* resource_cache;
 };
+
+void dummy_job(void* data)
+{
+	volatile uint32_t* job_done = *(volatile uint32_t**)data;
+	*job_done = 1u;
+}
 
 int application_main(application_t* application)
 {
@@ -30,9 +37,9 @@ int application_main(application_t* application)
 
 	job_system_create_params_t job_system_create_params;
 	job_system_create_params.alloc = &allocator_malloc;
-	job_system_create_params.max_bundles = 1;
 	job_system_create_params.num_threads = 4; // TODO
 	job_system_create_params.num_queue_slots = 128;
+	job_system_create_params.max_bundles = 1;
 	job_system_t* job_system = job_system_create(&job_system_create_params);
 	resource_context.job_system = job_system;
 
@@ -60,7 +67,14 @@ int application_main(application_t* application)
 
 	while (application_is_running(application))
 	{
+		volatile uint32_t job_done = 0;
+		volatile uint32_t* job_done_ptr = &job_done;
 		application_update(application);
+
+		job_system_kick_ptr(job_system, dummy_job, &job_done_ptr, sizeof(job_done_ptr));
+
+		while (job_done == 0)
+			thread_yield();
 	}
 
 	resource_cache_destroy(resource_cache);
