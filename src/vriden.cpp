@@ -1,5 +1,6 @@
 #include "application.h"
 #include "assert.h"
+#include "hash.h"
 #include "job_system.h"
 #include "resource_cache.h"
 #include "thread.h"
@@ -15,12 +16,6 @@ struct resource_context_t
 	struct vfs_t* vfs;
 	struct resource_cache_t* resource_cache;
 };
-
-void dummy_job(void* data)
-{
-	volatile uint32_t* job_done = *(volatile uint32_t**)data;
-	*job_done = 1u;
-}
 
 int application_main(application_t* application)
 {
@@ -42,6 +37,8 @@ int application_main(application_t* application)
 	job_system_create_params.max_bundles = 1;
 	job_system_t* job_system = job_system_create(&job_system_create_params);
 	resource_context.job_system = job_system;
+
+	job_system_load_bundle(job_system, "vriden_jobs" CONFIG_SUFFIX DYNAMIC_LIBRARY_EXTENSION);
 
 	vfs_create_params_t vfs_params;
 	vfs_params.allocator = &allocator_malloc;
@@ -71,7 +68,7 @@ int application_main(application_t* application)
 		volatile uint32_t* job_done_ptr = &job_done;
 		application_update(application);
 
-		job_system_kick_ptr(job_system, dummy_job, &job_done_ptr, sizeof(job_done_ptr));
+		job_system_kick(job_system, hash_string("dummy_job"), &job_done_ptr, sizeof(job_done_ptr));
 
 		while (job_done == 0)
 			thread_yield();

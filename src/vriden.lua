@@ -4,6 +4,11 @@ function Unit.Init(self)
 end
 
 function Unit.Build(self)
+	local job_src = Collect(self.path .. "/jobs/*.cpp")
+	local job_obj = Compile(self.settings, job_src)
+	local job_dll = SharedLibrary(self.settings, self.targetname .. "_jobs", job_obj)
+	self:AddProduct(job_dll)
+
 	if target.family == "windows" then
 		self.settings.link.libs:Add("user32")
 		self.settings.link.flags:Add("/SUBSYSTEM:WINDOWS")
