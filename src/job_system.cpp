@@ -21,6 +21,8 @@
 #	include <dlfcn.h>
 #endif //#if defined(FAMILY_*)
 
+#include <cstdio> // For snprintf
+
 enum job_command_t
 {
 	JOB_COMMAND_READY = 0,
@@ -39,6 +41,7 @@ struct job_bundle_t
 {
 #if defined(FAMILY_WINDOWS)
 	HMODULE handle;
+	char file_name[MAX_PATH]; // Holds temp file name so that file can be deleted later
 #elif defined(FAMILY_UNIX)
 	void* handle;
 #endif //#if defined(FAMILY_*)
@@ -152,6 +155,8 @@ void job_system_destroy(job_system_t* system)
 	{
 #if defined(FAMILY_WINDOWS)
 		FreeLibrary(system->bundles[i].handle);
+		BOOL delete_res = DeleteFile(system->bundles[i].file_name);
+		ASSERT(delete_res != 0);
 #elif defined(FAMILY_UNIX)
 		dlclose(system->bundles[i].handle);
 #endif //#if defined(FAMILY_*)
@@ -163,14 +168,14 @@ void job_system_destroy(job_system_t* system)
 	ALLOCATOR_DELETE(system->alloc, job_system_t, system);
 }
 
-job_system_result_t job_system_load_bundle(job_system_t* system, const char* path)
+job_system_result_t job_system_load_bundle(job_system_t* system, const char* name)
 {
 #if defined(FAMILY_WINDOWS)
 	HMODULE handle = NULL;
 #elif defined(FAMILY_UNIX)
 	void* handle = NULL;
 #endif //#if defined(FAMILY_*)
-	uint32_t hash = hash_string(path);
+	uint32_t hash = hash_string(name);
 	size_t i = 0, j = 0;
 	while(i < system->bundles.length())
 	{
@@ -178,7 +183,7 @@ job_system_result_t job_system_load_bundle(job_system_t* system, const char* pat
 		{
 			while(j < system->funcs.length())
 			{
-				if(system->funcs[j].hash == hash)
+				if(system->funcs[j].parent == hash)
 					system->funcs.remove_at_fast(j);
 				else
 					++j;
@@ -186,6 +191,8 @@ job_system_result_t job_system_load_bundle(job_system_t* system, const char* pat
 
 #if defined(FAMILY_WINDOWS)
 			FreeLibrary(system->bundles[i].handle);
+			BOOL delete_res = DeleteFile(system->bundles[i].file_name);
+			ASSERT(delete_res != 0);
 #elif defined(FAMILY_UNIX)
 			dlclose(system->bundles[i].handle);
 #endif //#if defined(FAMILY_*)
@@ -195,10 +202,40 @@ job_system_result_t job_system_load_bundle(job_system_t* system, const char* pat
 			++i;
 	}
 
+	job_bundle_t bundle;
 #if defined(FAMILY_WINDOWS)
-	handle = LoadLibrary(path);
+	const char* base_path = "local/build/winx64";
+	char src_path[MAX_PATH];
+	snprintf(src_path, ARRAY_LENGTH(src_path), "%s/%s.dll", base_path, name);
+	UINT unique = GetTempFileName(base_path, name, 0, bundle.file_name);
+	ASSERT(unique != 0);
+	BOOL copy_res = CopyFile(src_path, bundle.file_name, FALSE);
+	if (copy_res == 0)
+	{
+		BREAKPOINT();
+		DWORD err = GetLastError();
+		LPTSTR lpMsgBuf;
+		DWORD bufLen = FormatMessage(
+			FORMAT_MESSAGE_ALLOCATE_BUFFER |
+			FORMAT_MESSAGE_FROM_SYSTEM |
+			FORMAT_MESSAGE_IGNORE_INSERTS,
+			NULL,
+			err,
+			MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+			(LPTSTR)&lpMsgBuf,
+			0, NULL );
+		if (bufLen)
+		{
+			OutputDebugString(lpMsgBuf);
+			LocalFree(lpMsgBuf);
+		}
+	}
+	ASSERT(copy_res != 0);
+	handle = LoadLibrary(bundle.file_name);
 #elif defined(FAMILY_UNIX)
-	handle = dlopen(path, RTLD_LAZY | RTLD_LOCAL);
+	char buffer[1024];
+	snprintf(buffer, ARRAY_LENGTH(buffer), "%s.so", name);
+	handle = dlopen(buffer, RTLD_LAZY | RTLD_LOCAL);
 #endif //#if defined(FAMILY_*)
 	if(handle)
 	{
@@ -210,7 +247,6 @@ job_system_result_t job_system_load_bundle(job_system_t* system, const char* pat
 
 		if(table)
 		{
-			job_bundle_t bundle;
 			bundle.handle = handle;
 			bundle.hash = hash;
 			while(table->function)

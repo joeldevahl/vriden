@@ -38,7 +38,7 @@ int application_main(application_t* application)
 	job_system_t* job_system = job_system_create(&job_system_create_params);
 	resource_context.job_system = job_system;
 
-	job_system_load_bundle(job_system, "vriden_jobs" CONFIG_SUFFIX DYNAMIC_LIBRARY_EXTENSION);
+	job_system_load_bundle(job_system, "vriden_jobs" CONFIG_SUFFIX);
 
 	vfs_create_params_t vfs_params;
 	vfs_params.allocator = &allocator_malloc;
