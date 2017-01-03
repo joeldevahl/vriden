@@ -204,15 +204,16 @@ job_system_result_t job_system_load_bundle(job_system_t* system, const char* nam
 
 	job_bundle_t bundle;
 #if defined(FAMILY_WINDOWS)
-	const char* base_path = "local/build/winx64";
+	const char* base_path = "local/build/winx64"; // TODO: don't hardcode this
 	char src_path[MAX_PATH];
-	snprintf(src_path, ARRAY_LENGTH(src_path), "%s/%s.dll", base_path, name);
+	snprintf(src_path, ARRAY_LENGTH(src_path), "%s/%s", base_path, name);
 	UINT unique = GetTempFileName(base_path, name, 0, bundle.file_name);
 	ASSERT(unique != 0);
+
 	BOOL copy_res = CopyFile(src_path, bundle.file_name, FALSE);
 	if (copy_res == 0)
 	{
-		BREAKPOINT();
+		// Kept around for debugging problems realoading
 		DWORD err = GetLastError();
 		LPTSTR lpMsgBuf;
 		DWORD bufLen = FormatMessage(
@@ -229,13 +230,13 @@ job_system_result_t job_system_load_bundle(job_system_t* system, const char* nam
 			OutputDebugString(lpMsgBuf);
 			LocalFree(lpMsgBuf);
 		}
+	
+		return JOB_SYSTEM_COULD_NOT_LOAD_BUNDLE;
 	}
-	ASSERT(copy_res != 0);
+
 	handle = LoadLibrary(bundle.file_name);
 #elif defined(FAMILY_UNIX)
-	char buffer[1024];
-	snprintf(buffer, ARRAY_LENGTH(buffer), "%s.so", name);
-	handle = dlopen(buffer, RTLD_LAZY | RTLD_LOCAL);
+	handle = dlopen(name, RTLD_LAZY | RTLD_LOCAL);
 #endif //#if defined(FAMILY_*)
 	if(handle)
 	{
