@@ -34,6 +34,11 @@ void thread_yield()
 	SwitchToThread();
 }
 
+void thread_sleep(uint32_t milliseconds)
+{
+	Sleep(milliseconds);
+}
+
 #elif defined(FAMILY_UNIX)
 
 #include <pthread.h>
@@ -78,6 +83,14 @@ void thread_exit()
 void thread_yield()
 {
 	sched_yield();
+}
+
+void thread_sleep(uint32_t milliseconds)
+{
+	struct timespec ts;
+	ts.tv_sec = milliseconds / 1000;
+	ts.tv_nsec = (milliseconds % 1000) * 1000000;
+	nanosleep(&ts, NULL);
 }
 
 #else
