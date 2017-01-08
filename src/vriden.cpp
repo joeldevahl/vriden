@@ -38,7 +38,10 @@ int application_main(application_t* application)
 	job_system_t* job_system = job_system_create(&job_system_create_params);
 	resource_context.job_system = job_system;
 
-	job_system_load_bundle(job_system, "vriden_jobs" CONFIG_SUFFIX DYNAMIC_LIBRARY_EXTENSION);
+	job_system_result_t job_res =  job_system_load_bundle(job_system, "vriden_jobs" CONFIG_SUFFIX DYNAMIC_LIBRARY_EXTENSION);
+
+	job_cached_function_t* dummy_job = nullptr;
+	job_res = job_system_cache_function(job_system, hash_string("dummy_job"), &dummy_job);
 
 	vfs_create_params_t vfs_params;
 	vfs_params.allocator = &allocator_malloc;
@@ -68,7 +71,7 @@ int application_main(application_t* application)
 		volatile uint32_t* job_done_ptr = &job_done;
 		application_update(application);
 
-		job_system_kick(job_system, hash_string("dummy_job"), &job_done_ptr, sizeof(job_done_ptr));
+		job_system_kick(job_system, dummy_job, &job_done_ptr, sizeof(job_done_ptr));
 
 		while (job_done == 0)
 			thread_yield();
@@ -79,6 +82,7 @@ int application_main(application_t* application)
 	vfs_mount_fs_destroy(vfs_fs_data);
 	vfs_destroy(vfs);
 
+	job_system_release_cached_function(job_system, dummy_job);
 	job_system_destroy(job_system);
 
 	window_destroy(window);
