@@ -49,7 +49,7 @@ extern allocator_t allocator_malloc;
 
 allocator_t* allocator_incheap_create(allocator_t* parent, size_t size);
 void allocator_incheap_destroy(allocator_t* allocator);
-void allocator_incheap_reset(allocator_t* allocator);
+void allocator_incheap_reset(allocator_t* allocator, void* mark = nullptr);
 void* allocator_incheap_start(allocator_t* allocator);
 void* allocator_incheap_curr(allocator_t* allocator);
 size_t allocator_incheap_bytes_consumed(allocator_t* allocator);
