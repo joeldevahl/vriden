@@ -33,8 +33,12 @@ int application_main(application_t* application)
 	job_system_create_params_t job_system_create_params;
 	job_system_create_params.alloc = &allocator_malloc;
 	job_system_create_params.num_threads = 4; // TODO
-	job_system_create_params.num_queue_slots = 128;
 	job_system_create_params.max_bundles = 1;
+	job_system_create_params.max_cached_functions = 1;
+	job_system_create_params.num_queue_slots = 128;
+	job_system_create_params.worker_thread_temp_size = 4 * 1024 * 1024; // 4 MiB temp size per thread;
+	job_system_create_params.max_job_argument_size = 1008;
+	job_system_create_params.job_argument_alignment = 16;
 	job_system_t* job_system = job_system_create(&job_system_create_params);
 	resource_context.job_system = job_system;
 

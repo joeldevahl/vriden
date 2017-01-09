@@ -62,11 +62,13 @@ struct job_queue_slot_t
 	uint8_t ALIGN(16) data[1008];
 };
 
-struct job_thread_t
+struct job_context_t
 {
 	job_system_t* system;
 	thread_t* worker_thread;
 	volatile uint32_t command;
+
+	allocator_t* incheap;
 };
 
 struct job_event_t
@@ -85,7 +87,7 @@ struct job_system_t
 	condition_t* cond;
 
 	allocator_t* alloc;
-	array_t<job_thread_t> threads;
+	array_t<job_context_t> threads;
 	circular_queue_t<job_queue_slot_t> queue;
 	objpool_t<job_cached_function_t, uint16_t> cached_functions;
 
@@ -95,9 +97,10 @@ struct job_system_t
 
 static void job_thread_main(void* ptr)
 {
-	job_thread_t* thread = reinterpret_cast<job_thread_t*>(ptr);
-	job_system_t* system = thread->system;
-	while(thread->command != JOB_COMMAND_EXIT)
+	job_context_t* context = reinterpret_cast<job_context_t*>(ptr);
+	job_system_t* system = context->system;
+
+	while(context->command != JOB_COMMAND_EXIT)
 	{
 		mutex_lock(system->mutex);
 
@@ -113,7 +116,8 @@ static void job_thread_main(void* ptr)
 			mutex_unlock(system->mutex);
 			condition_signal(system->cond);
 
-			job.function(&job.data);
+			job.function(context, &job.data);
+			allocator_incheap_reset(context->incheap);
 		}
 		else
 		{
@@ -140,6 +144,7 @@ job_system_t* job_system_create(const job_system_create_params_t* params)
 	for(size_t i = 0; i < system->threads.length(); ++i)
 	{
 		system->threads[i].system = system;
+		system->threads[i].incheap = allocator_incheap_create(system->alloc, params->worker_thread_temp_size);
 		system->threads[i].worker_thread = thread_create("job_thread", job_thread_main, &system->threads[i]);
 	}
 
@@ -159,6 +164,7 @@ void job_system_destroy(job_system_t* system)
 	{
 		thread_join(system->threads[i].worker_thread);
 		thread_destroy(system->threads[i].worker_thread);
+		allocator_incheap_destroy(system->threads[i].incheap);
 	}
 
 	for(auto i : system->bundles)
@@ -316,7 +322,21 @@ job_system_result_t job_system_kick(job_system_t* system, job_cached_function_t*
 	return job_system_kick_ptr(system, cached_function->function, arg, arg_size);
 }
 
-job_system_result_t job_system_kick_ptr(job_system_t* system, void (*function)(void*), void* arg, size_t arg_size)
+static job_system_result_t job_system_enqueue_job(job_system_t* system, job_function_t function, void* arg, size_t arg_size)
+{
+	// assumes the lock has been taken and there is space in the queue
+	job_queue_slot_t slot;
+	if (arg_size > sizeof(slot.data))
+		return JOB_SYSTEM_ARGUMENT_TOO_BIG;
+
+	slot.function = function;
+	memcpy(&slot.data, arg, arg_size);
+	system->queue.put(slot);
+
+	return JOB_SYSTEM_OK;
+}
+
+job_system_result_t job_system_kick_ptr(job_system_t* system, job_function_t function, void* arg, size_t arg_size)
 {
 	mutex_lock(system->mutex);
 
@@ -325,14 +345,43 @@ job_system_result_t job_system_kick_ptr(job_system_t* system, void (*function)(v
 		condition_wait(system->cond, system->mutex);
 	}
 	
-	job_queue_slot_t slot;
-	ASSERT(arg_size < sizeof(slot.data), "Too much data in argument");
-	slot.function = function;
-	memcpy(&slot.data, arg, arg_size);
-	system->queue.put(slot);
+	job_system_result_t res = job_system_enqueue_job(system, function, arg, arg_size);
 
 	mutex_unlock(system->mutex);
 	condition_signal(system->cond);
 
+	return res;
+}
+
+job_system_result_t job_context_get_allocator(job_context_t* context, allocator_t** out_allocator)
+{
+	*out_allocator = context->incheap;
 	return JOB_SYSTEM_OK;
+}
+
+job_system_result_t job_context_kick(job_context_t* context, job_cached_function_t* cached_function, void* arg, size_t arg_size)
+{
+
+	return job_context_kick_ptr(context, cached_function->function, arg, arg_size);
+}
+
+job_system_result_t job_context_call(job_context_t* context, job_cached_function_t* cached_function, void* arg)
+{
+	void* mark = allocator_incheap_curr(context->incheap);
+	cached_function->function(context, arg);
+	allocator_incheap_reset(context->incheap, mark);
+	return JOB_SYSTEM_OK;
+}
+
+job_system_result_t job_context_kick_ptr(job_context_t* context, job_function_t function, void* arg, size_t arg_size)
+{
+	mutex_lock(context->system->mutex);
+
+	ASSERT(!context->system->queue.full()); // TODO: handle overflowing queue gracefully
+	job_system_result_t res = job_system_enqueue_job(context->system, function, arg, arg_size);
+
+	mutex_unlock(context->system->mutex);
+	condition_signal(context->system->cond);
+
+	return res;
 }

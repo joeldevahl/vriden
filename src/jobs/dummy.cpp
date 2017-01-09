@@ -1,6 +1,6 @@
 #include "../job_system.h"
 
-void dummy_job(void* data)
+void dummy_job(job_context_t* /*context*/, void* data)
 {
 	volatile uint32_t* job_done = *(volatile uint32_t**)data;
 	*job_done = 1u;
