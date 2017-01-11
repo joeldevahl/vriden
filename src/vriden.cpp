@@ -81,14 +81,9 @@ int application_main(application_t* application)
 			&job_done
 		};
 
-		void* args[1] =
-		{
-			&job_params
-		};
-
 		application_update(application);
 
-		job_system_kick(job_system, dummy_job, 1, args, sizeof(dummy_job_params_t));
+		job_system_kick(job_system, dummy_job, 1, &job_params);
 
 		while (job_done == 0)
 			thread_yield();

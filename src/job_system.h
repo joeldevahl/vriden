@@ -51,3 +51,43 @@ job_system_result_t job_context_get_allocator(job_context_t* context, allocator_
 job_system_result_t job_context_kick(job_context_t* context, job_cached_function_t* cached_function, size_t num_jobs, void** args, size_t arg_size);
 job_system_result_t job_context_call(job_context_t* context, job_cached_function_t* cached_function, size_t num_jobs, void** args);
 job_system_result_t job_context_kick_ptr(job_context_t* context, job_function_t function, size_t num_jobs, void** args, size_t arg_size);
+
+template<class T>
+job_system_result_t job_system_kick(job_system_t* system, job_cached_function_t* cached_function, size_t num_jobs, T* args)
+{
+	void** vargs = (void**)alloca(num_jobs * sizeof(void*));
+	for (size_t i = 0; i < num_jobs; ++i) vargs[i] = &args[i];
+	return job_system_kick(system, cached_function, num_jobs, vargs, sizeof(T));
+}
+
+template<class T>
+job_system_result_t job_system_kick_ptr(job_system_t* system, job_function_t* function, size_t num_jobs, T* args)
+{
+	void** vargs = (void**)alloca(num_jobs * sizeof(void*));
+	for (size_t i = 0; i < num_jobs; ++i) vargs[i] = &args[i];
+	return job_system_kick_ptr(system, function, num_jobs, vargs, sizeof(T));
+}
+
+template<class T>
+job_system_result_t job_context_kick(job_context_t* context, job_cached_function_t* cached_function, size_t num_jobs, T* args)
+{
+	void** vargs = (void**)alloca(num_jobs * sizeof(void*));
+	for (size_t i = 0; i < num_jobs; ++i) vargs[i] = &args[i];
+	return job_context_kick(system, cached_function, num_jobs, vargs, sizeof(T));
+}
+
+template<class T>
+job_system_result_t job_context_call(job_context_t* context, job_cached_function_t* cached_function, size_t num_jobs, T* args)
+{
+	void** vargs = (void**)alloca(num_jobs * sizeof(void*));
+	for (size_t i = 0; i < num_jobs; ++i) vargs[i] = &args[i];
+	return job_context_call(system, cached_function, num_jobs, vargs, sizeof(T));
+}
+
+template<class T>
+job_system_result_t job_context_kick_ptr(job_context_t* context, job_function_t function, size_t num_jobs, T* args)
+{
+	void** vargs = (void**)alloca(num_jobs * sizeof(void*));
+	for (size_t i = 0; i < num_jobs; ++i) vargs[i] = &args[i];
+	return job_context_kick_ptr(system, function, num_jobs, vargs, sizeof(T));
+}
