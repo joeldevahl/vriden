@@ -50,6 +50,11 @@ struct circular_queue_t
 		return _count == _capacity;
 	}
 
+	size_t space_left() const
+	{
+		return _capacity - _count;
+	}
+
 	void put(const T& t)
 	{
 		ASSERT(!full(), "cannot put into full queue");
