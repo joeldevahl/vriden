@@ -5,7 +5,7 @@
 #include "allocator.h"
 
 #include "array.h"
-#include "circular_queue.h"
+#include "list.h"
 #include "objpool.h"
 
 #include "thread.h"
@@ -55,11 +55,10 @@ struct job_cached_function_t
 	uint32_t name_hash;
 };
 
-struct job_queue_slot_t
+struct job_queue_slot_t : public list_node_t<job_queue_slot_t>
 {
 	job_function_t function;
-	void* padding; // TODO: figure this out in a good way, 
-	uint8_t ALIGN(16) data[1008];
+	void* data;
 };
 
 struct job_context_t
@@ -88,11 +87,15 @@ struct job_system_t
 
 	allocator_t* alloc;
 	array_t<job_context_t> threads;
-	circular_queue_t<job_queue_slot_t> queue;
+	linked_list_t<job_queue_slot_t> queue;
+	linked_list_t<job_queue_slot_t> free_slots;
 	objpool_t<job_cached_function_t, uint16_t> cached_functions;
 
 	bundle_map bundles;
 	function_map functions;
+
+	size_t max_job_argument_size;
+	size_t job_argument_alignment;
 };
 
 static void job_thread_main(void* ptr)
@@ -111,12 +114,12 @@ static void job_thread_main(void* ptr)
 
 		if(system->queue.any())
 		{
-			job_queue_slot_t job = system->queue.get();
+			job_queue_slot_t* job = system->queue.pop_front();
 
 			mutex_unlock(system->mutex);
 			condition_signal(system->cond);
 
-			job.function(context, &job.data);
+			job->function(context, &job->data);
 			allocator_incheap_reset(context->incheap);
 		}
 		else
@@ -137,7 +140,6 @@ job_system_t* job_system_create(const job_system_create_params_t* params)
 	system->alloc = params->alloc;
 
 	system->threads.create(system->alloc, params->num_threads);
-	system->queue.create(system->alloc, params->num_queue_slots);
 	system->cached_functions.create(system->alloc, params->max_cached_functions);
 
 	system->threads.set_length(system->threads.capacity());
@@ -147,6 +149,9 @@ job_system_t* job_system_create(const job_system_create_params_t* params)
 		system->threads[i].incheap = allocator_incheap_create(system->alloc, params->worker_thread_temp_size);
 		system->threads[i].worker_thread = thread_create("job_thread", job_thread_main, &system->threads[i]);
 	}
+
+	system->max_job_argument_size = params->max_job_argument_size;
+	system->job_argument_alignment = params->job_argument_alignment;
 
 	return system;
 }
@@ -317,35 +322,41 @@ job_system_result_t job_system_release_cached_function(job_system_t* system, job
 	return JOB_SYSTEM_OK;
 }
 
-job_system_result_t job_system_kick(job_system_t* system, job_cached_function_t* cached_function, void* arg, size_t arg_size)
+job_system_result_t job_system_kick(job_system_t* system, job_cached_function_t* cached_function, size_t num_jobs, void** args, size_t arg_size)
 {
-	return job_system_kick_ptr(system, cached_function->function, arg, arg_size);
+	return job_system_kick_ptr(system, cached_function->function, num_jobs, args, arg_size);
 }
 
-static job_system_result_t job_system_enqueue_job(job_system_t* system, job_function_t function, void* arg, size_t arg_size)
+static job_system_result_t job_system_enqueue_jobs(job_system_t* system, job_function_t function, size_t num_jobs, void** args, size_t arg_size)
 {
-	// assumes the lock has been taken and there is space in the queue
-	job_queue_slot_t slot;
-	if (arg_size > sizeof(slot.data))
+	if (arg_size > system->max_job_argument_size)
 		return JOB_SYSTEM_ARGUMENT_TOO_BIG;
 
-	slot.function = function;
-	memcpy(&slot.data, arg, arg_size);
-	system->queue.put(slot);
+	// assumes the lock has been taken
+	for (size_t i = 0; i < num_jobs; ++i)
+	{
+		job_queue_slot_t* slot = system->free_slots.pop_front();
+		if (slot == nullptr)
+		{
+			slot = ALLOCATOR_ALLOC_TYPE(system->alloc, job_queue_slot_t);
+			memset(slot, 0, sizeof(*slot));
+			slot->data = ALLOCATOR_ALLOC(system->alloc, system->max_job_argument_size, system->job_argument_alignment); // TODO: merge allocs?
+		}
+
+		slot->function = function;
+
+		memcpy(slot->data, args[i], arg_size);
+		system->queue.push_back(slot);
+	}
 
 	return JOB_SYSTEM_OK;
 }
 
-job_system_result_t job_system_kick_ptr(job_system_t* system, job_function_t function, void* arg, size_t arg_size)
+job_system_result_t job_system_kick_ptr(job_system_t* system, job_function_t function, size_t num_jobs, void** args, size_t arg_size)
 {
 	mutex_lock(system->mutex);
 
-	if(system->queue.full())
-	{
-		condition_wait(system->cond, system->mutex);
-	}
-	
-	job_system_result_t res = job_system_enqueue_job(system, function, arg, arg_size);
+	job_system_result_t res = job_system_enqueue_jobs(system, function, num_jobs, args, arg_size);
 
 	mutex_unlock(system->mutex);
 	condition_signal(system->cond);
@@ -359,26 +370,28 @@ job_system_result_t job_context_get_allocator(job_context_t* context, allocator_
 	return JOB_SYSTEM_OK;
 }
 
-job_system_result_t job_context_kick(job_context_t* context, job_cached_function_t* cached_function, void* arg, size_t arg_size)
+job_system_result_t job_context_kick(job_context_t* context, job_cached_function_t* cached_function, size_t num_jobs, void** args, size_t arg_size)
 {
 
-	return job_context_kick_ptr(context, cached_function->function, arg, arg_size);
+	return job_context_kick_ptr(context, cached_function->function, num_jobs, args, arg_size);
 }
 
-job_system_result_t job_context_call(job_context_t* context, job_cached_function_t* cached_function, void* arg)
+job_system_result_t job_context_call(job_context_t* context, job_cached_function_t* cached_function, size_t num_jobs, void** args)
 {
-	void* mark = allocator_incheap_curr(context->incheap);
-	cached_function->function(context, arg);
-	allocator_incheap_reset(context->incheap, mark);
+	for (size_t i = 0; i < num_jobs; ++i)
+	{
+		void* mark = allocator_incheap_curr(context->incheap);
+		cached_function->function(context, args[i]);
+		allocator_incheap_reset(context->incheap, mark);
+	}
 	return JOB_SYSTEM_OK;
 }
 
-job_system_result_t job_context_kick_ptr(job_context_t* context, job_function_t function, void* arg, size_t arg_size)
+job_system_result_t job_context_kick_ptr(job_context_t* context, job_function_t function, size_t num_jobs, void** args, size_t arg_size)
 {
 	mutex_lock(context->system->mutex);
 
-	ASSERT(!context->system->queue.full()); // TODO: handle overflowing queue gracefully
-	job_system_result_t res = job_system_enqueue_job(context->system, function, arg, arg_size);
+	job_system_result_t res = job_system_enqueue_jobs(context->system, function, num_jobs, args, arg_size);
 
 	mutex_unlock(context->system->mutex);
 	condition_signal(context->system->cond);

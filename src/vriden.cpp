@@ -17,6 +17,11 @@ struct resource_context_t
 	struct resource_cache_t* resource_cache;
 };
 
+struct dummy_job_params_t
+{
+	volatile uint32_t* job_done_ptr;
+};
+
 int application_main(application_t* application)
 {
 	resource_context_t resource_context = {};
@@ -35,10 +40,9 @@ int application_main(application_t* application)
 	job_system_create_params.num_threads = 4; // TODO
 	job_system_create_params.max_bundles = 1;
 	job_system_create_params.max_cached_functions = 1;
-	job_system_create_params.num_queue_slots = 128;
-	job_system_create_params.worker_thread_temp_size = 4 * 1024 * 1024; // 4 MiB temp size per thread;
-	job_system_create_params.max_job_argument_size = 1008;
-	job_system_create_params.job_argument_alignment = 16;
+	job_system_create_params.worker_thread_temp_size = 4 * 1024 * 1024; // 4 MiB temp size per thread
+	job_system_create_params.max_job_argument_size = 1024; // Each arg can be max 1KiB i size
+	job_system_create_params.job_argument_alignment = 16; // And will be 16 byte aligned
 	job_system_t* job_system = job_system_create(&job_system_create_params);
 	resource_context.job_system = job_system;
 
@@ -71,11 +75,20 @@ int application_main(application_t* application)
 
 	while (application_is_running(application))
 	{
-		volatile uint32_t job_done = 0;
-		volatile uint32_t* job_done_ptr = &job_done;
+		volatile uint32_t job_done;
+		dummy_job_params_t job_params =
+		{
+			&job_done
+		};
+
+		void* args[1] =
+		{
+			&job_params
+		};
+
 		application_update(application);
 
-		job_system_kick(job_system, dummy_job, &job_done_ptr, sizeof(job_done_ptr));
+		job_system_kick(job_system, dummy_job, 1, args, sizeof(dummy_job_params_t));
 
 		while (job_done == 0)
 			thread_yield();
