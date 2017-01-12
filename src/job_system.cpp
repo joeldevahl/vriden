@@ -58,6 +58,8 @@ struct job_cached_function_t
 struct job_queue_slot_t : public list_node_t<job_queue_slot_t>
 {
 	job_function_t function;
+	job_event_t* depends;
+	job_event_t* result;
 	void* data;
 };
 
@@ -68,12 +70,12 @@ struct job_context_t
 	volatile uint32_t command;
 
 	allocator_t* incheap;
+	job_queue_slot_t* curr_job;
 };
 
-struct job_event_t
+struct job_event_t : public list_node_t<job_event_t>
 {
-	uint32_t num_kicked;
-	volatile uint32_t num_finished;
+	volatile uint32_t num_left;
 	condition_t* cond;
 };
 
@@ -90,6 +92,7 @@ struct job_system_t
 	linked_list_t<job_queue_slot_t> queue;
 	linked_list_t<job_queue_slot_t> free_slots;
 	objpool_t<job_cached_function_t, uint16_t> cached_functions;
+	linked_list_t<job_event_t> free_events;
 
 	bundle_map bundles;
 	function_map functions;
@@ -103,9 +106,27 @@ static void job_thread_main(void* ptr)
 	job_context_t* context = reinterpret_cast<job_context_t*>(ptr);
 	job_system_t* system = context->system;
 
+	job_event_t* last_event = nullptr;
+	job_queue_slot_t* last_slot = nullptr;
 	while(context->command != JOB_COMMAND_EXIT)
 	{
 		mutex_lock(system->mutex);
+
+		if (last_event)
+		{
+			// TODO: this is bad, we should to the whole event thing in a better way.
+			// Not doing this whole dance when we hold the lock
+			uint32_t num_left = InterlockedDecrement(&last_event->num_left);
+			if (num_left == 0)
+				condition_signal(last_event->cond);
+			last_event = nullptr;
+		}
+
+		if (last_slot)
+		{
+			system->free_slots.push_back(last_slot);
+			last_slot = nullptr;
+		}
 
 		if(system->queue.empty())
 		{
@@ -119,8 +140,13 @@ static void job_thread_main(void* ptr)
 			mutex_unlock(system->mutex);
 			condition_signal(system->cond);
 
+			context->curr_job = job;
 			job->function(context, &job->data);
 			allocator_incheap_reset(context->incheap);
+			context->curr_job = nullptr;
+
+			last_event = job->result;
+			last_slot = job;
 		}
 		else
 		{
@@ -322,15 +348,37 @@ job_system_result_t job_system_release_cached_function(job_system_t* system, job
 	return JOB_SYSTEM_OK;
 }
 
-job_system_result_t job_system_kick(job_system_t* system, job_cached_function_t* cached_function, size_t num_jobs, void** args, size_t arg_size)
+job_system_result_t job_system_kick(job_system_t* system, job_cached_function_t* cached_function, size_t num_jobs, void** args, size_t arg_size, job_event_t* depends, job_event_t** out_event)
 {
-	return job_system_kick_ptr(system, cached_function->function, num_jobs, args, arg_size);
+	return job_system_kick_ptr(system, cached_function->function, num_jobs, args, arg_size, depends, out_event);
 }
 
-static job_system_result_t job_system_enqueue_jobs(job_system_t* system, job_function_t function, size_t num_jobs, void** args, size_t arg_size)
+static job_system_result_t job_system_enqueue_jobs(job_system_t* system, job_function_t function, size_t num_jobs, void** args, size_t arg_size, job_event_t* depends, job_event_t** out_event)
 {
 	if (arg_size > system->max_job_argument_size)
 		return JOB_SYSTEM_ARGUMENT_TOO_BIG;
+
+	job_event_t* result_event = nullptr;
+	if (out_event != nullptr)
+	{
+		if ((*out_event) == nullptr)
+		{
+			// We want an event, but has not yet allocated one. Do so now
+			result_event = system->free_events.pop_front();
+			if (result_event == nullptr)
+			{
+				result_event = ALLOCATOR_ALLOC_TYPE(system->alloc, job_event_t);
+				memset(result_event, 0, sizeof(*result_event));
+				result_event->cond = condition_create();
+			}
+			*out_event = result_event;
+		}
+		else
+			result_event = *out_event;
+	}
+
+	if (result_event)
+		result_event->num_left += (uint32_t)num_jobs; // TODO: 64bit atomics?
 
 	// assumes the lock has been taken
 	for (size_t i = 0; i < num_jobs; ++i)
@@ -344,24 +392,43 @@ static job_system_result_t job_system_enqueue_jobs(job_system_t* system, job_fun
 		}
 
 		slot->function = function;
+		slot->depends = depends;
+		slot->result = result_event;
 
-		memcpy(slot->data, args[i], arg_size);
+		if(arg_size > 0)
+			memcpy(slot->data, args[i], arg_size);
+
 		system->queue.push_back(slot);
 	}
 
 	return JOB_SYSTEM_OK;
 }
 
-job_system_result_t job_system_kick_ptr(job_system_t* system, job_function_t function, size_t num_jobs, void** args, size_t arg_size)
+job_system_result_t job_system_kick_ptr(job_system_t* system, job_function_t function, size_t num_jobs, void** args, size_t arg_size, job_event_t* depends, job_event_t** out_event)
 {
 	mutex_lock(system->mutex);
 
-	job_system_result_t res = job_system_enqueue_jobs(system, function, num_jobs, args, arg_size);
+	job_system_result_t res = job_system_enqueue_jobs(system, function, num_jobs, args, arg_size, depends, out_event);
 
 	mutex_unlock(system->mutex);
 	condition_signal(system->cond);
 
 	return res;
+}
+
+job_system_result_t job_system_wait_release_event(job_system_t* system, job_event_t* event)
+{
+	mutex_lock(system->mutex);
+
+	if (event->num_left != 0)
+		condition_wait(event->cond, system->mutex);
+
+	system->free_events.push_back(event);
+
+	mutex_unlock(system->mutex);
+	condition_signal(system->cond);
+
+	return JOB_SYSTEM_OK;
 }
 
 job_system_result_t job_context_get_allocator(job_context_t* context, allocator_t** out_allocator)
@@ -372,7 +439,6 @@ job_system_result_t job_context_get_allocator(job_context_t* context, allocator_
 
 job_system_result_t job_context_kick(job_context_t* context, job_cached_function_t* cached_function, size_t num_jobs, void** args, size_t arg_size)
 {
-
 	return job_context_kick_ptr(context, cached_function->function, num_jobs, args, arg_size);
 }
 
@@ -391,7 +457,8 @@ job_system_result_t job_context_kick_ptr(job_context_t* context, job_function_t 
 {
 	mutex_lock(context->system->mutex);
 
-	job_system_result_t res = job_system_enqueue_jobs(context->system, function, num_jobs, args, arg_size);
+	job_event_t** event = context->curr_job->result != nullptr ? &context->curr_job->result : nullptr;
+	job_system_result_t res = job_system_enqueue_jobs(context->system, function, num_jobs, args, arg_size, context->curr_job->depends, event);
 
 	mutex_unlock(context->system->mutex);
 	condition_signal(context->system->cond);

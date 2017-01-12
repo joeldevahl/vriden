@@ -37,8 +37,7 @@ int application_main(application_t* application)
 
 	job_system_create_params_t job_system_create_params;
 	job_system_create_params.alloc = &allocator_malloc;
-	job_system_create_params.num_threads = 4; // TODO
-	job_system_create_params.max_bundles = 1;
+	job_system_create_params.num_threads = 8; // TODO
 	job_system_create_params.max_cached_functions = 1;
 	job_system_create_params.worker_thread_temp_size = 4 * 1024 * 1024; // 4 MiB temp size per thread
 	job_system_create_params.max_job_argument_size = 1024; // Each arg can be max 1KiB i size
@@ -75,18 +74,11 @@ int application_main(application_t* application)
 
 	while (application_is_running(application))
 	{
-		volatile uint32_t job_done;
-		dummy_job_params_t job_params =
-		{
-			&job_done
-		};
-
 		application_update(application);
 
-		job_system_kick(job_system, dummy_job, 1, &job_params);
-
-		while (job_done == 0)
-			thread_yield();
+		job_event_t* event = nullptr;
+		job_system_kick(job_system, dummy_job, 1024, nullptr, 0, nullptr, &event);
+		job_system_wait_release_event(job_system, event);
 	}
 
 	resource_cache_destroy(resource_cache);
