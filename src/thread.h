@@ -12,3 +12,4 @@ void thread_join(thread_t* thread);
 void thread_exit();
 void thread_yield();
 void thread_sleep(uint32_t milliseconds);
+uint32_t thread_get_current_id();

@@ -39,6 +39,11 @@ void thread_sleep(uint32_t milliseconds)
 	Sleep(milliseconds);
 }
 
+uint32_t thread_get_current_id()
+{
+	return GetCurrentThreadId();
+}
+
 #elif defined(FAMILY_UNIX)
 
 #include <pthread.h>
@@ -91,6 +96,11 @@ void thread_sleep(uint32_t milliseconds)
 	ts.tv_sec = milliseconds / 1000;
 	ts.tv_nsec = (milliseconds % 1000) * 1000000;
 	nanosleep(&ts, NULL);
+}
+
+uint32_t thread_get_current_id()
+{
+#error not implemented
 }
 
 #else
