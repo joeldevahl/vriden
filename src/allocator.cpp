@@ -111,10 +111,14 @@ void allocator_incheap_free(allocator_t* allocator, void* memory, const char* fi
 	// NOP.
 }
 
-void allocator_incheap_reset(allocator_t* allocator)
+void allocator_incheap_reset(allocator_t* allocator, void* mark)
 {
 	allocator_incheap_t* incheap = (allocator_incheap_t*)allocator;
-	incheap->offset = 0;
+	uintptr_t new_offset = mark ? reinterpret_cast<uint8_t*>(mark) - incheap->baseptr : 0;
+	ASSERT(new_offset >= 0);
+	ASSERT(new_offset < incheap->size);
+	ASSERT(new_offset <= incheap->offset);
+	incheap->offset = new_offset;
 }
 
 void* allocator_incheap_start(allocator_t* allocator)

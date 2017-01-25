@@ -27,6 +27,7 @@ end
 function Config.Execute(self)
 	config.settings.config_name = "debug"
 	config.settings.config_ext = "_d"
+		config.settings.cc.defines:Add("CONFIG_SUFFIX=\\\"_d\\\"")
 
 	if family == "unix" then
 	  config.settings.cc.flags:Add("-g")
