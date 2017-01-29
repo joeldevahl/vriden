@@ -43,4 +43,4 @@ pause
 exit
 
 :compile
-bam
+bam debug --debug-nodes > debug.txt
