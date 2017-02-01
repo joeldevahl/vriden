@@ -1,0 +1,64 @@
+{
+	"module" : "shader",
+	"enums": {
+		"shader_frequency_t": {
+			"SHADER_FREQUENCY_PER_FRAME": 0,
+			"SHADER_FREQUENCY_PER_VIEW": 1,
+			"SHADER_FREQUENCY_PER_PASS": 2,
+			"SHADER_FREQUENCY_PER_MATERIAL": 3,
+			"SHADER_FREQUENCY_PER_INSTANCE": 4,
+			"SHADER_FREQUENCY_MAX": 5
+		},
+		"shader_stage_t": {
+			"SHADER_STAGE_VERTEX": 0,
+			"SHADER_STAGE_HULL": 1,
+			"SHADER_STAGE_DOMAIN": 2,
+			"SHADER_STAGE_GEOMETRY": 3,
+			"SHADER_STAGE_FRAGMENT": 4,
+			"SHADER_STAGE_MAX": 5
+		}
+	},
+	"types" : {
+		"shader_property_dx12_t" : {
+			"members" : [
+				{ "name" : "name_hash", "type" : "uint32" },
+				{ "name" : "data", "type" : "uint8[]" },
+				{ "name" : "frequency", "type" : "shader_frequency_t" },
+				{ "name" : "pack_offset", "type" : "uint32" }
+			]
+		},
+		"shader_constant_buffer_dx12_t" : {
+			"members" : [
+				{ "name" : "data", "type" : "uint8[]" }
+			]
+		},
+		"shader_stage_data_dx12_t" : {
+			"members" : [
+				{ "name" : "program", "type" : "uint8[]" }
+			]
+		},
+		"shader_variant_data_dx12_t" : {
+			"members" : [
+				{ "name" : "stages", "type" : "shader_stage_data_dx12_t[SHADER_STAGE_MAX]" }
+			]
+		},
+		"shader_data_dx12_t" : {
+			"members" : [
+				{ "name" : "properties", "type" : "shader_property_dx12_t[]", "default" : [] },
+				{ "name" : "constant_buffers", "type" : "shader_constant_buffer_dx12_t[SHADER_FREQUENCY_MAX]" },
+				{ "name" : "variants", "type" : "shader_variant_data_dx12_t[]" }
+			]
+		},
+		"shader_data_null_t" : {
+			"members" : [
+				{ "name" : "dummy", "type" : "uint8" }	
+			]
+		},
+		"shader_data_t" : {
+			"members" : [
+				{ "name" : "data_null", "type" : "shader_data_null_t*" },
+				{ "name" : "data_dx12", "type" : "shader_data_dx12_t*" }
+			]
+		}
+	}
+}

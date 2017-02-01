@@ -1,0 +1,17 @@
+{
+	"module" : "material_intermediate",
+	"types" : {
+		"material_intermediate_property_t" : {
+			"members" : [
+				{ "name" : "name", "type" : "string" },
+				{ "name" : "value", "type" : "fp32[]" }
+			]
+		},
+		"material_intermediate_t" : {
+			"members" : [
+				{ "name" : "properties", "type" : "material_intermediate_property_t[]", "default" : [] },
+				{ "name" : "shader_name", "type" : "string" }
+			]
+		}
+	}
+}

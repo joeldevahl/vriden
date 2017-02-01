@@ -1,0 +1,46 @@
+{
+	"module" : "shader_intermediate",
+  "enums": {
+    "shader_intermediate_frequency_t": {
+      "PER_FRAME": 0,
+      "PER_VIEW": 1,
+      "PER_PASS": 2,
+      "PER_MATERIAL": 3,
+      "PER_INSTANCE": 4
+    }
+  },
+  "unions": {
+    "shader_intermediate_property_data_t": {
+      "members": [
+        {
+          "name": "floats",
+          "type": "fp32[]"
+        },
+        {
+          "name": "ints",
+          "type": "int32[]"
+        }
+      ]
+    }
+  },
+	"types" : {
+		"shader_intermediate_property_t" : {
+			"members" : [
+				{ "name" : "name", "type" : "string" },
+				{ "name" : "frequency", "type" : "shader_intermediate_frequency_t" },
+        { "name" : "data", "type" : "shader_intermediate_property_data_t" }
+			]
+		},
+		"shader_intermediate_t" : {
+			"members" : [
+				{ "name" : "properties", "type" : "shader_intermediate_property_t[]", "default" : [] },
+				{ "name" : "common_code", "type" : "string", "default" : "" },
+				{ "name" : "vertex_program", "type" : "string" },
+				{ "name" : "hull_program", "type" : "string", "default" : "" },
+				{ "name" : "domain_program", "type" : "string", "default" : "" },
+				{ "name" : "geometry_program", "type" : "string", "default" : "" },
+				{ "name" : "fragment_program", "type" : "string", "default" : "" }
+			]
+		}
+	}
+}

@@ -1,0 +1,24 @@
+{
+	"module" : "vertex_layout",
+	"enums" : {
+		"vertex_layout_element_type_t" : {
+			"ELEMENT_TYPE_POSITION" : 0,
+			"ELEMENT_TYPE_ONE"      : 1
+		}
+	},
+	"types" : {
+		"vertex_layout_element_t" : {
+			"members" : [
+				{ "name" : "element_type", "type" : "vertex_layout_element_type_t" },
+				{ "name" : "data_type", "type" : "uint8" },
+				{ "name" : "count", "type" : "uint8" }
+			]
+		},
+		"vertex_layout_t" : {
+			"members" : [
+				{ "name" : "stride", "type" : "uint32" },
+				{ "name" : "elements", "type" : "vertex_layout_element_t[]" }
+			]
+		}
+	}
+}

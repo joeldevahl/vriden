@@ -1,0 +1,23 @@
+{
+	"module" : "mesh_intermediate",
+	"types" : {
+		"mesh_intermediate_vertex_stream_t" : {
+			"members" : [
+				{ "name" : "index", "type" : "uint8" },
+				{ "name" : "layout", "type" : "string" }
+			]
+		},
+		"mesh_intermediate_index_stream_t" : {
+			"members" : [
+				{ "name" : "data_type", "type" : "uint8" }
+			]
+		},
+		"mesh_intermediate_t" : {
+			"members" : [
+				{ "name" : "source", "type" : "string" },
+				{ "name" : "vertex_stream", "type" : "mesh_intermediate_vertex_stream_t" },
+				{ "name" : "index_stream", "type" : "mesh_intermediate_index_stream_t" }
+			]
+		}
+	}
+}

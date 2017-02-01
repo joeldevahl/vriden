@@ -1,0 +1,17 @@
+{
+	"module" : "material",
+	"types" : {
+		"material_property_t" : {
+			"members" : [
+				{ "name" : "name_hash", "type" : "uint32" },
+				{ "name" : "value", "type" : "uint8[]" }
+			]
+		},
+		"material_data_t" : {
+			"members" : [
+				{ "name" : "properties", "type" : "material_property_t[]", "default" : [] },
+				{ "name" : "shader_name_hash", "type" : "uint32" }
+			]
+		}
+	}
+}

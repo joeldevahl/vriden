@@ -1,0 +1,23 @@
+{
+	"module" : "mesh",
+	"types" : {
+		"mesh_vertex_data_t" : {
+			"members" : [
+				{ "name" : "layout_hash", "type" : "uint32" },
+				{ "name" : "data", "type" : "uint8[]" }
+			]
+		},
+		"mesh_index_data_t" : {
+			"members" : [
+				{ "name" : "data_type", "type" : "uint8" },
+				{ "name" : "data", "type" : "uint8[]" }
+			]
+		},
+		"mesh_data_t" : {
+			"members" : [
+				{ "name" : "vertex_data", "type" : "mesh_vertex_data_t" },
+				{ "name" : "index_data", "type" : "mesh_index_data_t" }
+			]
+		}
+	}
+}
