@@ -110,9 +110,13 @@ int application_main(application_t* application)
 
 	float max_time_float = (float)max_time / (float)freq;
 
+#if defined(FAMILY_WINDOWS)
 	char buff[4096];
 	snprintf(buff, sizeof(buff), "Took max %f s to run jobs\n", max_time_float);
 	OutputDebugString(buff);
+#else
+	printf("Took max %f s to run jobs\n", max_time_float);
+#endif
 
 	resource_cache_destroy(resource_cache);
 
