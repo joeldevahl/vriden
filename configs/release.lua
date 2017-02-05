@@ -22,6 +22,7 @@ end
 function Config.Execute(self)
 	config.settings.config_name = "release"
 	config.settings.config_ext = "_r"
+		config.settings.cc.defines:Add("CONFIG_SUFFIX=\\\"_r\\\"")
 	
 	config.settings.cc.defines:Add('LOG_ENABLE')
 	config.settings.cc.defines:Add('DBG_TOOLS_ASSERT_ENABLE')

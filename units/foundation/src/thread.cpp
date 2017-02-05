@@ -34,9 +34,20 @@ void thread_yield()
 	SwitchToThread();
 }
 
+void thread_sleep(uint32_t milliseconds)
+{
+	Sleep(milliseconds);
+}
+
+uint64_t thread_get_current_id()
+{
+	return GetCurrentThreadId();
+}
+
 #elif defined(FAMILY_UNIX)
 
 #include <pthread.h>
+#include <unistd.h>
 
 union thread_converter
 {
@@ -78,6 +89,18 @@ void thread_exit()
 void thread_yield()
 {
 	sched_yield();
+}
+
+void thread_sleep(uint32_t milliseconds)
+{
+	usleep(milliseconds * 1000);
+}
+
+uint64_t thread_get_current_id()
+{
+	uint64_t tid;
+	pthread_threadid_np(NULL, &tid);
+	return tid;
 }
 
 #else

@@ -1,4 +1,5 @@
 Unit:Using("catch")
+Unit:Using("application")
 
 function Unit.Init(self)
 	self.executable = true
@@ -14,16 +15,21 @@ end
 
 function Unit.Build(self)
 	if target.family == "windows" then
-		self.settings.link.libs:Add("user32")
-		self.settings.link.flags:Add("/SUBSYSTEM:WINDOWS")
+		self.settings.dll.libs:Add("user32")
 	end
-	local src = Collect(self.path .. "/*.cpp")
-	local obj = Compile(self.settings, src)
+
+	local common_src = Collect(self.path .. "/*.cpp")
+	local common_obj = Compile(self.settings, common_src)
 
 	-- use integrated tests for now
 	local test_src = Collect(self.path .. "tests/*.cpp")
 	local test_obj = Compile(self.settings, test_src)
 
-	local bin = Link(self.settings, self.targetname, obj, test_obj)
+	local job_src = Collect(self.path .. "/jobs/*.cpp")
+	local job_obj = Compile(self.settings, job_src)
+	local job_dll = SharedLibrary(self.settings, self.targetname .. "_jobs", job_obj, common_obj)
+	self:AddProduct(job_dll)
+
+	local bin = Link(self.settings, self.targetname, common_obj, test_obj)
 	self:AddProduct(bin)
 end

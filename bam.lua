@@ -8,6 +8,8 @@ AddConfig("release", "configs/release.lua")
 
 if engine.host.family == "windows" then
 	AddTarget("winx64", "targets/winx64.lua")
+elseif engine.host.platform == "macosx" then
+	AddTarget("osx_x86_64", "targets/osx_x86_64.lua")
 end
 
 AddStep("init", "steps/init.lua")
@@ -19,6 +21,7 @@ AddStep("projgen", "steps/projgen.lua")
 Init()
 
 AddUnitDir("externals")
+AddUnitDir("units")
 AddUnitByPath("vriden", "src")
 
 Build()
