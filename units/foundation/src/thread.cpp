@@ -39,7 +39,7 @@ void thread_sleep(uint32_t milliseconds)
 	Sleep(milliseconds);
 }
 
-uint32_t thread_get_current_id()
+uint64_t thread_get_current_id()
 {
 	return GetCurrentThreadId();
 }
@@ -47,6 +47,7 @@ uint32_t thread_get_current_id()
 #elif defined(FAMILY_UNIX)
 
 #include <pthread.h>
+#include <unistd.h>
 
 union thread_converter
 {
@@ -92,15 +93,14 @@ void thread_yield()
 
 void thread_sleep(uint32_t milliseconds)
 {
-	struct timespec ts;
-	ts.tv_sec = milliseconds / 1000;
-	ts.tv_nsec = (milliseconds % 1000) * 1000000;
-	nanosleep(&ts, NULL);
+	usleep(milliseconds * 1000);
 }
 
-uint32_t thread_get_current_id()
+uint64_t thread_get_current_id()
 {
-#error not implemented
+	uint64_t tid;
+	pthread_threadid_np(NULL, &tid);
+	return tid;
 }
 
 #else

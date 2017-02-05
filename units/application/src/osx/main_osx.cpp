@@ -1,7 +1,7 @@
 #include <application.h>
 #include <allocator.h>
 
-int atec_main(application_t* application);
+int application_main(application_t* application);
 
 int main(int argc, char **argv)
 {
@@ -13,7 +13,7 @@ int main(int argc, char **argv)
 	params.argv = argv;
 	application = application_create(&params);
 
-	int val = atec_main(application);
+	int val = application_main(application);
 
 	application_destroy(application);
 

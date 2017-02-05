@@ -93,3 +93,8 @@ char** application_get_argv(application_t* app)
 {
 	return app->argv;
 }
+
+bool application_is_running(application_t* app)
+{
+	return true; // TODO(joel): keep track of window running
+}

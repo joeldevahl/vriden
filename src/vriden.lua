@@ -8,8 +8,6 @@ end
 function Unit.Build(self)
 	if target.family == "windows" then
 		self.settings.dll.libs:Add("user32")
-		self.settings.link.libs:Add("user32")
-		self.settings.link.flags:Add("/SUBSYSTEM:WINDOWS")
 	end
 
 	local common_src = Collect(self.path .. "/*.cpp")

@@ -22,6 +22,7 @@
 
 #include <cstdio> // For snprintf
 #include <unordered_map>
+#include <atomic>
 
 enum job_command_t
 {
@@ -74,8 +75,8 @@ struct job_context_t
 
 struct job_event_t : public list_node_t<job_event_t>
 {
-	volatile int64_t num_left;
-	volatile int64_t deps;
+	std::atomic<uint64_t> num_left;
+	std::atomic<uint64_t> deps;
 };
 
 typedef std::unordered_map<uint32_t, job_bundle_t> bundle_map; // TODO: use own hash table?
@@ -142,13 +143,15 @@ static void job_run_one(job_system_t* system, job_context_t* context)
 		context->curr_job = nullptr;
 
 		if (job->result)
-			InterlockedDecrement64(&job->result->num_left);
+		{
+			--job->result->num_left;
+		}
 
 		mutex_lock(system->mutex);
 
 		if (job->depends)
 		{
-			uint64_t num_left = InterlockedDecrement64(&job->depends->deps);
+			uint64_t num_left = --job->depends->deps;
 			if (num_left == 0)
 				system->free_events.push_back(job->depends);
 		}
@@ -272,7 +275,7 @@ job_system_result_t job_system_load_bundle(job_system_t* system, const char* bun
 		BOOL delete_res = DeleteFile(bundle->file_name);
 		ASSERT(delete_res != 0);
 #elif defined(FAMILY_UNIX)
-			dlclose(system->bundles[i].handle);
+			dlclose(bundle->handle);
 #endif //#if defined(FAMILY_*)
 
 		system->bundles.erase(bundle_iter);
@@ -312,7 +315,7 @@ job_system_result_t job_system_load_bundle(job_system_t* system, const char* bun
 
 	handle = LoadLibrary(bundle.file_name);
 #elif defined(FAMILY_UNIX)
-	handle = dlopen(name, RTLD_LAZY | RTLD_LOCAL);
+	handle = dlopen(bundle_name, RTLD_LAZY | RTLD_LOCAL);
 #endif //#if defined(FAMILY_*)
 	if(handle)
 	{
@@ -407,12 +410,12 @@ static job_system_result_t job_system_enqueue_jobs(job_system_t* system, job_fun
 
 	if (result_event)
 	{
-		InterlockedAdd64(&result_event->num_left, num_jobs);
-		InterlockedAdd64(&result_event->deps, 1);
+		result_event->num_left += num_jobs;
+		++result_event->deps;
 	}
 	if (depends)
 	{
-		InterlockedAdd64(&depends->deps, num_jobs);
+		depends->deps += num_jobs;
 	}
 
 	// assumes the lock has been taken
@@ -460,7 +463,7 @@ job_system_result_t job_system_wait_release_event(job_system_t* system, job_even
 	}
 
 	mutex_lock(system->mutex);
-	uint64_t num_left = InterlockedDecrement64(&event->deps);
+	uint64_t num_left = --event->deps;
 	if (num_left == 0)
 		system->free_events.push_back(event);
 
