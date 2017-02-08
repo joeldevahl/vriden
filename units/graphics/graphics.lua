@@ -1,8 +1,10 @@
 Unit:Using("foundation")
 
 -- compilers, find a way to make this non transitive
+-- and make sure only the compilers actually link this
 Unit:Using("getopt")
 Unit:Using("dl")
+Unit:Using("assimp")
 
 function Unit.AddTools(self)
 	AddTool(function (settings)
@@ -55,4 +57,16 @@ function Unit.Build(self)
 	local materialc_obj = Compile(self.settings, PathJoin(self.path, "src/materialc.cpp"))
 	local materialc = Link(self.settings, "materialc", materialc_obj)
 	self:AddProduct(materialc)
+
+	local texturec_obj = Compile(self.settings, PathJoin(self.path, "src/texturec.cpp"))
+	local texturec = Link(self.settings, "texturec", texturec_obj)
+	self:AddProduct(texturec)
+
+	local shaderc_obj = Compile(self.settings, PathJoin(self.path, "src/shaderc.cpp"))
+	local shaderc = Link(self.settings, "shaderc", shaderc_obj)
+	self:AddProduct(shaderc)
+
+	local meshc_obj = Compile(self.settings, PathJoin(self.path, "src/meshc.cpp"))
+	local meshc = Link(self.settings, "meshc", meshc_obj)
+	self:AddProduct(meshc)
 end

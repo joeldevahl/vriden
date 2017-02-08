@@ -1,24 +1,24 @@
-#include <core/assert.h>
+#include <assert.h>
 
-#include <memory/allocator.h>
-#include <io/file.h>
+#include <allocator.h>
+#include <file.h>
 
 #include <dl/dl.h>
 #include <dl/dl_util.h>
 
 #include <getopt/getopt.h>
 
-#include <units/shader/types/shader.h>
-#include <units/shader/types/shader_intermediate.h>
+#include <units/graphics/types/shader.h>
+#include <units/graphics/types/shader_intermediate.h>
 
 static const unsigned char shader_typelib[] =
 {
-#include <units/shader/types/shader.tlb.hex>
+#include <units/graphics/types/shader.tlb.hex>
 };
 
 static const unsigned char shader_intermediate_typelib[] =
 {
-#include <units/shader/types/shader_intermediate.tlb.hex>
+#include <units/graphics/types/shader_intermediate.tlb.hex>
 };
 
 #define ERROR_AND_QUIT(fmt, ...) { fprintf(stderr, "Error: " fmt "\n", ##__VA_ARGS__); return 0x0; }

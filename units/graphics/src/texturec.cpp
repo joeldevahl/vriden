@@ -1,19 +1,19 @@
-#include <core/assert.h>
-#include <core/hash.h>
+#include <assert.h>
+#include <hash.h>
 
-#include <memory/allocator.h>
-#include <io/file.h>
+#include <allocator.h>
+#include <file.h>
 
 #include <dl/dl.h>
 #include <dl/dl_util.h>
 
 #include <getopt/getopt.h>
 
-#include <units/texture/types/texture.h>
+#include <units/graphics/types/texture.h>
 
 static const unsigned char texture_typelib[] =
 {
-#include <units/texture/types/texture.tlb.hex>
+#include <units/graphics/types/texture.tlb.hex>
 };
 
 #define ERROR_AND_QUIT(fmt, ...) { fprintf(stderr, "Error: " fmt "\n", ##__VA_ARGS__); return 0x0; }

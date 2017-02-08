@@ -1,8 +1,8 @@
-#include <core/assert.h>
-#include <core/hash.h>
+#include <assert.h>
+#include <hash.h>
 
-#include <memory/allocator.h>
-#include <io/file.h>
+#include <allocator.h>
+#include <file.h>
 
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
@@ -13,23 +13,23 @@
 
 #include <getopt/getopt.h>
 
-#include <units/vertex_layout/types/vertex_layout.h>
-#include <units/mesh/types/mesh.h>
-#include <units/mesh/types/mesh_intermediate.h>
+#include <units/graphics/types/vertex_layout.h>
+#include <units/graphics/types/mesh.h>
+#include <units/graphics/types/mesh_intermediate.h>
 
 static const unsigned char vertex_layout_typelib[] =
 {
-#include <units/vertex_layout/types/vertex_layout.tlb.hex>
+#include <units/graphics/types/vertex_layout.tlb.hex>
 };
 
 static const unsigned char mesh_typelib[] =
 {
-#include <units/mesh/types/mesh.tlb.hex>
+#include <units/graphics/types/mesh.tlb.hex>
 };
 
 static const unsigned char mesh_intermediate_typelib[] =
 {
-#include <units/mesh/types/mesh_intermediate.tlb.hex>
+#include <units/graphics/types/mesh_intermediate.tlb.hex>
 };
 
 #define ERROR_AND_QUIT(fmt, ...) { fprintf(stderr, "Error: " fmt "\n", ##__VA_ARGS__); return 0x0; }
@@ -129,9 +129,7 @@ int main(int argc, const char** argv)
 	{
 		const aiMesh* mesh = scene->mMeshes[0];
 		ASSERT(mesh->HasPositions(), "Mesh must have positions");
-		const aiVector3D* positions = mesh->mVertices;
 		ASSERT(mesh->HasFaces(), "Mesh must have faces to be able to calculate indices");
-		const aiFace* faces = mesh->mFaces;
 
 		num_vertices += mesh->mNumVertices;
 		num_faces += mesh->mNumFaces;
@@ -145,16 +143,15 @@ int main(int argc, const char** argv)
 
 	// Dummy data to be used
 	const float one[] = { 1.0f, 1.0f, 1.0f, 1.0f };
-	const float zero[] = { 0.0f, 0.0f, 0.0f, 0.0f };
 
 	mesh_data_t mesh_data;
 
 	mesh_data.vertex_data.layout_hash = vertex_layout_hash;
-	mesh_data.vertex_data.data.data = (uint8_t*)ALLOCATOR_ALLOC(&allocator_default, vertex_data_size, 16);
+	mesh_data.vertex_data.data.data = (uint8_t*)ALLOCATOR_ALLOC(&allocator_malloc, vertex_data_size, 16);
 	mesh_data.vertex_data.data.count = vertex_data_size;
 
 	mesh_data.index_data.data_type = index_element_type;
-	mesh_data.index_data.data.data = (uint8_t*)ALLOCATOR_ALLOC(&allocator_default, index_data_size, 16);
+	mesh_data.index_data.data.data = (uint8_t*)ALLOCATOR_ALLOC(&allocator_malloc, index_data_size, 16);
 	mesh_data.index_data.data.count = index_data_size;
 
 
