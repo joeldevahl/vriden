@@ -49,7 +49,7 @@ function Unit.Build(self)
 	}
 
 	local graphics_obj = Compile(self.settings, graphics_src)
-	local graphics = Link(self.settings, "graphics", graphics_obj)
+	local graphics = StaticLibrary(self.settings, "graphics", graphics_obj)
 	self:AddProduct(graphics)
 
 	local materialc_obj = Compile(self.settings, PathJoin(self.path, "src/materialc.cpp"))
