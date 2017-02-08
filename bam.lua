@@ -22,6 +22,6 @@ Init()
 
 AddUnitDir("externals")
 AddUnitDir("units")
-AddUnitByPath("vriden", "src")
+AddUnitsInDir("projects")
 
 Build()

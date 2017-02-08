@@ -11,10 +11,10 @@ function Unit.Build(self)
 		self.settings.dll.libs:Add("user32")
 	end
 
-	local common_src = Collect(self.path .. "/*.cpp")
+	local common_src = Collect(self.path .. "/src/*.cpp")
 	local common_obj = Compile(self.settings, common_src)
 
-	local job_src = Collect(self.path .. "/jobs/*.cpp")
+	local job_src = Collect(self.path .. "/src/jobs/*.cpp")
 	local job_obj = Compile(self.settings, job_src)
 	local job_dll = SharedLibrary(self.settings, self.targetname .. "_jobs", job_obj, common_obj)
 	self:AddProduct(job_dll)
