@@ -2,6 +2,7 @@
 #include "assert.h"
 #include "hash.h"
 #include "job_system.h"
+#include "render.h"
 #include "resource_cache.h"
 #include "thread.h"
 #include "time.h"
@@ -28,6 +29,7 @@ struct resource_context_t
 	struct job_system_t* job_system;
 	struct vfs_t* vfs;
 	struct resource_cache_t* resource_cache;
+	struct render_t* render;
 };
 
 struct dummy_job_params_t
@@ -87,6 +89,19 @@ int application_main(application_t* application)
 	resource_cache_t* resource_cache = resource_cache_create(&resource_cache_params);
 	resource_context.resource_cache = resource_cache;
 
+	render_create_info_t render_create_info;
+	render_create_info.allocator = &allocator_malloc;
+	render_create_info.window = window_get_platform_handle(window);
+	render_create_info.max_textures = 1;
+	render_create_info.max_shaders = 1;
+	render_create_info.max_materials = 1;
+	render_create_info.max_meshes = 1;
+	render_create_info.max_instances = 1;
+	render_t* render;
+	render_result_t render_res = render_create(&render_create_info, &render);
+	ASSERT(render_res == RENDER_RESULT_OK, "failed create render");
+	resource_context.render = render;
+
 	uint64_t max_time = 0;
 	while (application_is_running(application))
 	{
@@ -117,6 +132,8 @@ int application_main(application_t* application)
 #else
 	printf("Took max %f s to run jobs\n", max_time_float);
 #endif
+
+	render_destroy(render);
 
 	resource_cache_destroy(resource_cache);
 

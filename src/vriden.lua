@@ -1,4 +1,5 @@
 Unit:Using("application")
+Unit:Using("graphics")
 
 function Unit.Init(self)
 	self.executable = true

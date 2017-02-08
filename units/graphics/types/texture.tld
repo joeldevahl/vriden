@@ -1,0 +1,10 @@
+{
+	"module" : "texture",
+	"types" : {
+		"texture_data_t" : {
+			"members" : [
+				{ "name" : "data", "type" : "uint8[]" }
+			]
+		}
+	}
+}

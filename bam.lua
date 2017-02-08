@@ -20,6 +20,7 @@ AddStep("projgen", "steps/projgen.lua")
 
 Init()
 
+AddUnitDir("externals")
 AddUnitDir("units")
 AddUnitByPath("vriden", "src")
 
