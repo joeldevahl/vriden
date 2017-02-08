@@ -7,32 +7,51 @@ Unit:Using("dl")
 Unit:Using("assimp")
 
 function Unit.AddTools(self)
-	AddTool(function (settings)
-		settings.materialc = {}
-		settings.materialc.exe = GetHostBinary("materialc")
 
-		settings.compile.mappings["material"] = function (settings, infile)
-			local outfile = PathJoin(target.outdir, infile)
-			local materialc = settings.materialc
-			local exe = materialc.exe
-			local cmd = exe .. " -o " .. outfile .. " " .. infile
+	local function AddCompiler(name, extension)
+		AddTool(function (settings)
+			settings[name] = {}
+			settings[name].exe = GetHostBinary(name)
 
-			AddJob(outfile, "material " .. infile, cmd)
-			AddDependency(outfile, materialc.exe)
-			AddDependency(outfile, infile)
+			settings.compile.mappings[extension] = function (settings, infile)
+				local outfile = PathJoin(target.outdir, infile)
+				local compiler = settings[name]
+				local exe = compiler.exe
+				local cmd = exe .. " -o " .. outfile .. " " .. infile
 
-			for line in io.lines(infile) do
-				local dep_type, file = string.match(line, "//%s*dep%s+(.+)%s+(.+)")
-				if dep_type and file then
-					if dep_type == "source" then
-						AddDependency(outfile, file)
-					else
-						-- TODO: transform source to binary version
+				AddJob(outfile, name .. " " .. infile, cmd)
+				AddDependency(outfile, exe)
+				AddDependency(outfile, infile)
+
+				for line in io.lines(infile) do
+					local dep_type, file = string.match(line, "//%s*dep%s+(.+)%s+(.+)")
+					if dep_type and file then
+						if dep_type == "source" then
+							AddDependency(outfile, file)
+						else
+							-- TODO: transform source to binary version
+						end
 					end
 				end
-			end
 
-			return outfile
+				return outfile
+			end
+		end)
+	end
+
+	AddCompiler("materialc", "material")
+	AddCompiler("meshc", "mesh")
+	AddCompiler("shaderc", "shader")
+	AddCompiler("texturec", "texture")
+
+	AddTool(function (settings)
+		settings.vertex_layoutc = {}
+		settings.vertex_layoutc.libname = "units/graphics/types/vertex_layout.tlb"
+
+		settings.compile.mappings["vl"] = function (settings, infile)
+			local outfile = PathJoin(target.outdir, PathBase(infile)) .. ".vl"
+			local libname = PathJoin(target.outdir, settings.vertex_layoutc.libname)
+			return DLPack(settings, infile, outfile, libname)
 		end
 	end)
 end
