@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdint.h>
+
 struct window_create_params_t
 {
 	struct allocator_t* allocator;

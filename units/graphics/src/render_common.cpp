@@ -1,6 +1,6 @@
 #include "render_common.h"
 
-#include <assert.h>
+#include <foundation/assert.h>
 
 #if defined(FAMILY_WINDOWS)
 #	define RENDER_CALL_FUNC(render, func, backend, ...) \

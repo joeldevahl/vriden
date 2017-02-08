@@ -1,5 +1,5 @@
-#include <application.h>
-#include <allocator.h>
+#include <application/application.h>
+#include <foundation/allocator.h>
 
 int application_main(application_t* application);
 

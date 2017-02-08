@@ -1,14 +1,14 @@
-#include "application.h"
-#include "assert.h"
-#include "hash.h"
-#include "job_system.h"
-#include "render.h"
-#include "resource_cache.h"
-#include "thread.h"
-#include "time.h"
-#include "vfs.h"
-#include "vfs_mount_fs.h"
-#include "window.h"
+#include <application/application.h>
+#include <application/window.h>
+#include <foundation/assert.h>
+#include <foundation/hash.h>
+#include <foundation/job_system.h>
+#include <foundation/resource_cache.h>
+#include <foundation/thread.h>
+#include <foundation/time.h>
+#include <foundation/vfs.h>
+#include <foundation/vfs_mount_fs.h>
+#include <graphics/render.h>
 
 #include <cstdio>
 

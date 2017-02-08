@@ -1,6 +1,6 @@
 #pragma once
 
-#include "mutex.h"
+#include <foundation/mutex.h>
 
 #include <cstdlib>
 

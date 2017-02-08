@@ -3,7 +3,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#include "detect.h"
+#include <foundation/detect.h>
 #ifdef FAMILY_UNIX
 #	include <sys/uio.h>
 #	include <unistd.h>
@@ -12,11 +12,11 @@
 #endif
 #include <fcntl.h>
 
-#include "assert.h"
+#include <foundation/assert.h>
 
-#include "file.h"
+#include <foundation/file.h>
 
-#include "allocator.h"
+#include <foundation/allocator.h>
 
 file_t* file_open(const char* file_name, file_open_mode_t mode)
 {

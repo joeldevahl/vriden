@@ -1,8 +1,8 @@
-#include <assert.h>
-#include <hash.h>
+#include <foundation/assert.h>
+#include <foundation/hash.h>
 
-#include <allocator.h>
-#include <file.h>
+#include <foundation/allocator.h>
+#include <foundation/file.h>
 
 #include <dl/dl.h>
 #include <dl/dl_util.h>

@@ -1,9 +1,9 @@
-#include "hash.h"
-#include "array.h"
-#include "objpool.h"
-#include "table.h"
-#include "vfs.h"
-#include "resource_cache.h"
+#include <foundation/hash.h>
+#include <foundation/array.h>
+#include <foundation/objpool.h>
+#include <foundation/table.h>
+#include <foundation/vfs.h>
+#include <foundation/resource_cache.h>
 
 struct resource_t
 {

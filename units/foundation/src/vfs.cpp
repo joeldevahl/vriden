@@ -1,11 +1,11 @@
-#include "array.h"
-#include "objpool.h"
-#include "circular_queue.h"
-#include "thread.h"
-#include "mutex.h"
-#include "condition.h"
+#include <foundation/array.h>
+#include <foundation/objpool.h>
+#include <foundation/circular_queue.h>
+#include <foundation/thread.h>
+#include <foundation/mutex.h>
+#include <foundation/condition.h>
 
-#include "vfs.h"
+#include <foundation/vfs.h>
 
 typedef struct vfs_mount_t
 {

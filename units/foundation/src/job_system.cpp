@@ -1,16 +1,15 @@
-#include "assert.h"
-#include "hash.h"
+#include <foundation/assert.h>
+#include <foundation/hash.h>
 
-#include "memory.h"
-#include "allocator.h"
+#include <foundation/allocator.h>
 
-#include "array.h"
-#include "list.h"
-#include "objpool.h"
+#include <foundation/array.h>
+#include <foundation/list.h>
+#include <foundation/objpool.h>
 
-#include "thread.h"
-#include "mutex.h"
-#include "job_system.h"
+#include <foundation/thread.h>
+#include <foundation/mutex.h>
+#include <foundation/job_system.h>
 
 #ifdef FAMILY_WINDOWS
 #	define WIN32_LEAN_AND_MEAN

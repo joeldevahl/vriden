@@ -1,6 +1,6 @@
-#include "thread.h"
-#include "assert.h"
-#include "allocator.h"
+#include <foundation/thread.h>
+#include <foundation/assert.h>
+#include <foundation/allocator.h>
 
 #if defined(FAMILY_WINDOWS)
 

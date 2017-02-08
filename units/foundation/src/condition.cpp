@@ -1,5 +1,5 @@
-#include "assert.h"
-#include "condition.h"
+#include <foundation/assert.h>
+#include <foundation/condition.h>
 #include "mutex_internal.h"
 
 #include <stdint.h>

@@ -1,9 +1,9 @@
 #import <Cocoa/Cocoa.h>
 #import <QuartzCore/CVDisplayLink.h>
 
-#include <allocator.h>
-#include <application.h>
-#include <window.h>
+#include <foundation/allocator.h>
+#include <application/application.h>
+#include <application/window.h>
 
 @interface AtecApplication : NSApplication
 @end

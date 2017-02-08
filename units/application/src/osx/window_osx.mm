@@ -1,7 +1,7 @@
 #import <Cocoa/Cocoa.h>
 
-#include <allocator.h>
-#include <window.h>
+#include <foundation/allocator.h>
+#include <application/window.h>
 
 @interface WindowDelegate : NSObject
 @end

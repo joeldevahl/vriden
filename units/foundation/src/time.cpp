@@ -1,7 +1,7 @@
 #include <time.h>
 #include <cstdlib>
 
-#include "detect.h"
+#include <foundation/detect.h>
 
 #if defined(FAMILY_UNIX)
 #	include <sys/time.h>

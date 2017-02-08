@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <stdarg.h>
 
-#include "assert.h"
-#include "defines.h"
+#include <foundation/assert.h>
+#include <foundation/defines.h>
 
 #if defined(FAMILY_WINDOWS)
 #	define WIN32_LEAN_AND_MEAN
