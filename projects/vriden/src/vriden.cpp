@@ -109,10 +109,12 @@ int application_main(application_t* application)
 
 		uint64_t start = time_current();
 		job_event_t* event = nullptr;
-		job_system_kick(job_system, dummy_job, 128, nullptr, 0, nullptr, &event);
+		job_system_acquire_event(job_system, &event);
+		job_system_kick(job_system, dummy_job, 128, nullptr, 0, nullptr, event);
 
 		job_event_t* event2 = nullptr;
-		job_system_kick(job_system, dummy_job2, 128, nullptr, 0, event, &event2);
+		job_system_acquire_event(job_system, &event2);
+		job_system_kick(job_system, dummy_job2, 128, nullptr, 0, event, event2);
 
 		job_system_wait_release_event(job_system, event2);
 		job_system_wait_release_event(job_system, event);

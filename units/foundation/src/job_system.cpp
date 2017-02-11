@@ -379,38 +379,77 @@ job_system_result_t job_system_release_cached_function(job_system_t* system, job
 	return JOB_SYSTEM_OK;
 }
 
-job_system_result_t job_system_kick(job_system_t* system, job_cached_function_t* cached_function, size_t num_jobs, void** args, size_t arg_size, job_event_t* depends, job_event_t** out_event)
+job_system_result_t job_system_acquire_event(job_system_t* system, job_event_t** out_event)
 {
-	return job_system_kick_ptr(system, cached_function->function, num_jobs, args, arg_size, depends, out_event);
+	ASSERT(thread_get_current_id() == system->main_thread_id);
+	ASSERT(out_event != nullptr);
+
+	mutex_lock(system->mutex);
+	*out_event = system->free_events.pop_front();
+	if (*out_event == nullptr)
+	{
+		*out_event = ALLOCATOR_ALLOC_TYPE(system->alloc, job_event_t);
+		memset(*out_event, 0, sizeof(**out_event));
+	}
+	mutex_unlock(system->mutex);
+
+	return JOB_SYSTEM_OK;
 }
 
-static job_system_result_t job_system_enqueue_jobs(job_system_t* system, job_function_t function, size_t num_jobs, void** args, size_t arg_size, job_event_t* depends, job_event_t** out_event)
+job_system_result_t job_system_release_event(job_system_t* system, job_event_t* event)
+{
+	ASSERT(thread_get_current_id() == system->main_thread_id);
+	ASSERT(event->num_left == 0);
+
+	mutex_lock(system->mutex);
+	uint64_t num_left = --event->deps;
+	if (num_left == 0)
+		system->free_events.push_back(event);
+
+	mutex_unlock(system->mutex);
+
+	return JOB_SYSTEM_OK;
+}
+
+bool job_system_test_event(job_system_t* system, job_event_t* event)
+{
+	return (event->num_left == 0);
+}
+
+job_system_result_t job_system_wait_event(job_system_t* system, job_event_t* event)
+{
+	ASSERT(thread_get_current_id() == system->main_thread_id);
+
+	while (event->num_left != 0)
+	{
+		job_run_one(system, &system->main_thread_context);
+	}
+
+	return JOB_SYSTEM_OK;
+}
+
+job_system_result_t job_system_wait_release_event(job_system_t* system, job_event_t* event)
+{
+	job_system_wait_event(system, event);
+	job_system_release_event(system, event);
+
+	return JOB_SYSTEM_OK;
+}
+
+job_system_result_t job_system_kick(job_system_t* system, job_cached_function_t* cached_function, size_t num_jobs, void** args, size_t arg_size, job_event_t* depends, job_event_t* event)
+{
+	return job_system_kick_ptr(system, cached_function->function, num_jobs, args, arg_size, depends, event);
+}
+
+static job_system_result_t job_system_enqueue_jobs(job_system_t* system, job_function_t function, size_t num_jobs, void** args, size_t arg_size, job_event_t* depends, job_event_t* event)
 {
 	if (arg_size > system->max_job_argument_size)
 		return JOB_SYSTEM_ARGUMENT_TOO_BIG;
 
-	job_event_t* result_event = nullptr;
-	if (out_event != nullptr)
+	if (event)
 	{
-		if ((*out_event) == nullptr)
-		{
-			// We want an event, but has not yet allocated one. Do so now
-			result_event = system->free_events.pop_front();
-			if (result_event == nullptr)
-			{
-				result_event = ALLOCATOR_ALLOC_TYPE(system->alloc, job_event_t);
-				memset(result_event, 0, sizeof(*result_event));
-			}
-			*out_event = result_event;
-		}
-		else
-			result_event = *out_event;
-	}
-
-	if (result_event)
-	{
-		result_event->num_left += num_jobs;
-		++result_event->deps;
+		event->num_left += num_jobs;
+		++event->deps;
 	}
 	if (depends)
 	{
@@ -430,7 +469,7 @@ static job_system_result_t job_system_enqueue_jobs(job_system_t* system, job_fun
 
 		slot->function = function;
 		slot->depends = depends;
-		slot->result = result_event;
+		slot->result = event;
 
 		if(arg_size > 0)
 			memcpy(slot->data, args[i], arg_size);
@@ -441,34 +480,15 @@ static job_system_result_t job_system_enqueue_jobs(job_system_t* system, job_fun
 	return JOB_SYSTEM_OK;
 }
 
-job_system_result_t job_system_kick_ptr(job_system_t* system, job_function_t function, size_t num_jobs, void** args, size_t arg_size, job_event_t* depends, job_event_t** out_event)
+job_system_result_t job_system_kick_ptr(job_system_t* system, job_function_t function, size_t num_jobs, void** args, size_t arg_size, job_event_t* depends, job_event_t* event)
 {
 	mutex_lock(system->mutex);
 
-	job_system_result_t res = job_system_enqueue_jobs(system, function, num_jobs, args, arg_size, depends, out_event);
+	job_system_result_t res = job_system_enqueue_jobs(system, function, num_jobs, args, arg_size, depends, event);
 
 	mutex_unlock(system->mutex);
 
 	return res;
-}
-
-job_system_result_t job_system_wait_release_event(job_system_t* system, job_event_t* event)
-{
-	ASSERT(thread_get_current_id() == system->main_thread_id);
-
-	while (event->num_left != 0)
-	{
-		job_run_one(system, &system->main_thread_context);
-	}
-
-	mutex_lock(system->mutex);
-	uint64_t num_left = --event->deps;
-	if (num_left == 0)
-		system->free_events.push_back(event);
-
-	mutex_unlock(system->mutex);
-
-	return JOB_SYSTEM_OK;
 }
 
 job_system_result_t job_context_get_allocator(job_context_t* context, allocator_t** out_allocator)
@@ -497,7 +517,7 @@ job_system_result_t job_context_kick_ptr(job_context_t* context, job_function_t 
 {
 	mutex_lock(context->system->mutex);
 
-	job_event_t** event = context->curr_job->result != nullptr ? &context->curr_job->result : nullptr;
+	job_event_t* event = context->curr_job->result != nullptr ? context->curr_job->result : nullptr;
 	job_system_result_t res = job_system_enqueue_jobs(context->system, function, num_jobs, args, arg_size, context->curr_job->depends, event);
 
 	mutex_unlock(context->system->mutex);
