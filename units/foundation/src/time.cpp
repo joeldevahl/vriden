@@ -1,7 +1,7 @@
-#include <time.h>
 #include <cstdlib>
 
 #include <foundation/detect.h>
+#include <foundation/time.h>
 
 #if defined(FAMILY_UNIX)
 #	include <sys/time.h>
@@ -10,8 +10,6 @@
 #	define _WIN32_WINNT 0x0600
 #	include <windows.h> // TODO: :
 #endif
-
-#include "time.h"
 
 uint64_t time_current()
 {

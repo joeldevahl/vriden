@@ -133,7 +133,8 @@ struct cobjpool_t
 	TH pointer_to_handle(const T* ptr) const
 	{
 		ptrdiff_t index = ptr - _data;
-		ASSERT(index < _capacity - _num_free, "bad pointer");
+		ASSERT(index >= 0, "bad pointer");
+		ASSERT(index < static_cast<ptrdiff_t>(_capacity - _num_free), "bad pointer");
 		return _allocated_handles[index];
 	}
 

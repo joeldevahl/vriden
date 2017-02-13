@@ -2,7 +2,9 @@
 
 #include "allocator.h"
 
-#include <alloca.h>
+#if defined(FAMILY_UNIX)
+#	include <alloca.h>
+#endif
 
 struct job_system_t;
 struct job_context_t;

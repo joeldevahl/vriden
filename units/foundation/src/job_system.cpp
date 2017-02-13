@@ -98,7 +98,7 @@ struct job_system_t
 	size_t max_job_argument_size;
 	size_t job_argument_alignment;
 
-	uint32_t main_thread_id;
+	uint64_t main_thread_id;
 	job_context_t main_thread_context;
 };
 
@@ -411,7 +411,7 @@ job_system_result_t job_system_release_event(job_system_t* system, job_event_t* 
 	return JOB_SYSTEM_OK;
 }
 
-bool job_system_test_event(job_system_t* system, job_event_t* event)
+bool job_system_test_event(job_system_t* /*system*/, job_event_t* event)
 {
 	return (event->num_left == 0);
 }
