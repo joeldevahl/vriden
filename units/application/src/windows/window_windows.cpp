@@ -2,8 +2,8 @@
 #define _WIN32_WINNT 0x0600
 #include <windows.h>
 
-#include "allocator.h"
-#include "window.h"
+#include <foundation/allocator.h>
+#include <application/window.h>
 
 struct window_t
 {
