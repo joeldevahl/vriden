@@ -1,12 +1,12 @@
 #pragma once
 
-#include <render.h>
+#include <graphics/render.h>
 #include "render_common.h"
 
-#include <objpool.h>
-#include <cobjpool.h>
-#include <idpool.h>
-#include <range_pool.h>
+#include <foundation/objpool.h>
+#include <foundation/cobjpool.h>
+#include <foundation/idpool.h>
+#include <foundation/range_pool.h>
 
 #include <d3d12.h>
 #include <dxgi1_4.h>

@@ -56,6 +56,19 @@ function Unit.AddTools(self)
 	end)
 end
 
+function Unit.Patch(self, other_unit)
+	self:DefaultPatch(other_unit)
+	if target.family == "windows" then
+		other_unit.settings.link.libs:Add("d3d12")
+		other_unit.settings.link.libs:Add("dxguid")
+		other_unit.settings.link.libs:Add("dxgi")
+
+		other_unit.settings.dll.libs:Add("d3d12")
+		other_unit.settings.dll.libs:Add("dxguid")
+		other_unit.settings.dll.libs:Add("dxgi")
+	end
+end
+
 function Unit.BuildTarget(self)
 	local typelib_src = Collect(self.path .. "/types/*.tld")
 	local typelib = Compile(self.settings, typelib_src);
@@ -80,9 +93,13 @@ function Unit.Build(self)
 	local texturec_obj = Compile(self.settings, PathJoin(self.path, "src/texturec.cpp"))
 	local texturec = Link(self.settings, "texturec", texturec_obj)
 	self:AddProduct(texturec)
-
-	local shaderc_obj = Compile(self.settings, PathJoin(self.path, "src/shaderc.cpp"))
-	local shaderc = Link(self.settings, "shaderc", shaderc_obj)
+	
+	local shaderc_settings = self.settings:Copy()
+	if target.family == "windows" then
+		shaderc_settings.link.libs:Add("d3dcompiler")
+	end
+	local shaderc_obj = Compile(shaderc_settings, PathJoin(self.path, "src/shaderc.cpp"), PathJoin(self.path, "src/shaderc_dx12.cpp"))
+	local shaderc = Link(shaderc_settings, "shaderc", shaderc_obj)
 	self:AddProduct(shaderc)
 
 	local meshc_obj = Compile(self.settings, PathJoin(self.path, "src/meshc.cpp"))

@@ -2,7 +2,7 @@
 
 #include "render_dx12.h"
 
-#include <core/hash.h>
+#include <foundation/hash.h>
 
 #include <algorithm>
 
@@ -392,7 +392,7 @@ void render_dx12_view_destroy(render_dx12_t* render, render_view_id_t view_id)
 	render->views.free_handle(view_id);
 }
 
-static uint32_t render_dx12_lookup_attachment(render_dx12_t* render, size_t num_targets, render_dx12_target_t* targets, const char* name)
+static size_t render_dx12_lookup_attachment(render_dx12_t* /*render*/, size_t num_targets, render_dx12_target_t* targets, const char* name)
 {
 	ASSERT(num_targets < (UINT32_MAX - 1)); // UINT32_MAX == no target bound, UINT32_MAX-1 == backbuffer bound
 	// TODO: handle non transient render targets
@@ -477,13 +477,13 @@ render_result_t render_dx12_script_create(render_dx12_t* render, const render_sc
 			for (size_t mb = 0; mb < RENDER_MULTI_BUFFERING; ++mb)
 			{
 				// TODO: only do this if we really reference the back buffer
-				dst_pass->color_descriptor_offset[mb] = render->rtv_pool.alloc(src_pass->num_color_attachments);
+				dst_pass->color_descriptor_offset[mb] = render->rtv_pool.alloc((uint32_t)src_pass->num_color_attachments);
 				dst_pass->color_descriptor[mb] = render->rtv_heap->GetCPUDescriptorHandleForHeapStart();
 				dst_pass->color_descriptor[mb].ptr += dst_pass->color_descriptor_offset[mb] * render->rtv_size;
 			}
 			for (size_t a = 0; a < src_pass->num_color_attachments; ++a)
 			{
-				uint32_t attachment = render_dx12_lookup_attachment(render, script->num_targets, script->targets, src_pass->color_attachments[a].name);
+				size_t attachment = render_dx12_lookup_attachment(render, script->num_targets, script->targets, src_pass->color_attachments[a].name);
 
 				for (size_t mb = 0; mb < RENDER_MULTI_BUFFERING; ++mb)
 				{
@@ -496,7 +496,7 @@ render_result_t render_dx12_script_create(render_dx12_t* render, const render_sc
 		}
 		if (src_pass->depth_stencil_attachment != nullptr)
 		{
-			uint32_t attachment = render_dx12_lookup_attachment(render, script->num_targets, script->targets, src_pass->depth_stencil_attachment->name);
+			size_t attachment = render_dx12_lookup_attachment(render, script->num_targets, script->targets, src_pass->depth_stencil_attachment->name);
 			dst_pass->depth_stencil_descriptor_offset = render->dsv_pool.alloc_handle();
 			dst_pass->depth_stencil_descriptor = render->dsv_heap->GetCPUDescriptorHandleForHeapStart();
 			dst_pass->depth_stencil_descriptor.ptr += dst_pass->depth_stencil_descriptor_offset * render->dsv_size;
@@ -573,7 +573,7 @@ render_result_t render_dx12_texture_create(render_dx12_t* render, const render_t
 		create_info->width,
 		create_info->height,
 		1,
-		row_pitch,
+		(UINT)row_pitch,
 	};
 
 	D3D12_PLACED_SUBRESOURCE_FOOTPRINT placed_texture =
@@ -677,9 +677,9 @@ render_result_t render_dx12_shader_create(render_dx12_t* render, const shader_da
 		pipeline_desc.BlendState.AlphaToCoverageEnable = FALSE;
 		pipeline_desc.BlendState.IndependentBlendEnable = FALSE;
 		size_t max_blend = 1;
-		for (size_t i = 0; i < max_blend; ++i)
+		for (size_t j = 0; j < max_blend; ++j)
 		{
-			D3D12_RENDER_TARGET_BLEND_DESC* target = pipeline_desc.BlendState.RenderTarget + i;
+			D3D12_RENDER_TARGET_BLEND_DESC* target = pipeline_desc.BlendState.RenderTarget + j;
 			target->BlendEnable = FALSE;
 			target->LogicOpEnable = FALSE;
 			target->SrcBlend = D3D12_BLEND_ONE;
@@ -941,7 +941,7 @@ struct render_dx12_pass_context_t
 	ID3D12GraphicsCommandList* command_list;
 };
 
-static void render_dx12_draw_pass(render_dx12_t* render, render_dx12_pass_context_t& ctx, render_dx12_view_t* view, render_dx12_script_t* script, uint32_t ip)
+static void render_dx12_draw_pass(render_dx12_t* render, render_dx12_pass_context_t& ctx, render_dx12_view_t* view, render_dx12_script_t* script, size_t ip)
 {
 	render_dx12_pass_t* pass = &script->passes[ip];
 
@@ -965,7 +965,7 @@ static void render_dx12_draw_pass(render_dx12_t* render, render_dx12_pass_contex
 
 		// TODO: sort objects should be added once per pass if object matches what to draw
 		// TODO: encode variant
-		sort_objects.append(render_dx12_sort_object_t(render->shaders.pointer_to_handle(shader), render->meshes.pointer_to_handle(mesh), i));
+		sort_objects.append(render_dx12_sort_object_t(render->shaders.pointer_to_handle(shader), render->meshes.pointer_to_handle(mesh), (render_instance_id_t)i));
 	}
 	std::sort(sort_objects.begin(), sort_objects.end());
 
@@ -974,8 +974,8 @@ static void render_dx12_draw_pass(render_dx12_t* render, render_dx12_pass_contex
 		render_dx12_sort_object_t& sort_object = sort_objects[i];
 		const render_dx12_instance_t* instance = ctx.instances + sort_object.get_instanceal_id();
 		render_dx12_mesh_t* mesh = instance->mesh;
-		argument_data[i].start_index = i; // TODO: figure out how to instance draw better later
-		argument_data[i].draw_args.IndexCountPerInstance = mesh->num_indices;
+		argument_data[i].start_index = (UINT)i; // TODO: figure out how to instance draw better later
+		argument_data[i].draw_args.IndexCountPerInstance = (UINT)mesh->num_indices;
 		argument_data[i].draw_args.InstanceCount = 1;
 		argument_data[i].draw_args.StartIndexLocation = 0;
 		argument_data[i].draw_args.BaseVertexLocation = 0;
@@ -985,13 +985,13 @@ static void render_dx12_draw_pass(render_dx12_t* render, render_dx12_pass_contex
 	// TODO: use one argument buffer per pass, not one for whole frame
 	barriers.clear();
 	render_dx12_push_barrier(barriers, render->argument_buffer, D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT, D3D12_RESOURCE_STATE_COPY_DEST);
-	ctx.command_list->ResourceBarrier(barriers.length(), barriers.begin());
+	ctx.command_list->ResourceBarrier((UINT)barriers.length(), barriers.begin());
 
 	ctx.command_list->CopyBufferRegion(render->argument_buffer, 0, render->upload_resource, argument_data_offset, argument_size);
 
 	barriers.clear();
 	render_dx12_push_barrier(barriers, render->argument_buffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
-	ctx.command_list->ResourceBarrier(barriers.length(), barriers.begin());
+	ctx.command_list->ResourceBarrier((UINT)barriers.length(), barriers.begin());
 
 	D3D12_CPU_DESCRIPTOR_HANDLE* color_targets = nullptr;
 	D3D12_CPU_DESCRIPTOR_HANDLE* depth_stencil_target = nullptr;
@@ -1014,20 +1014,19 @@ static void render_dx12_draw_pass(render_dx12_t* render, render_dx12_pass_contex
 	}
 
 	// TODO: handle nullptr here if no color or depth target
-	ctx.command_list->OMSetRenderTargets(pass->num_color_attachments, color_targets, true, depth_stencil_target);
+	ctx.command_list->OMSetRenderTargets((UINT)pass->num_color_attachments, color_targets, true, depth_stencil_target);
 
-	D3D12_RECT rect = { 0, 0, render->width, render->height }; // TODO
+	D3D12_RECT rect = { 0, 0, (LONG)render->width, (LONG)render->height }; // TODO
 	ctx.command_list->RSSetScissorRects(1, &rect);
 
-	D3D12_VIEWPORT viewport = { 0.0f, 0.0f, render->width, render->height, 0.0f, 1.0f };
+	D3D12_VIEWPORT viewport = { 0.0f, 0.0f, (float)render->width, (float)render->height, 0.0f, 1.0f };
 	ctx.command_list->RSSetViewports(1, &viewport);
 
 	ctx.command_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-	bool needs_flush = false;
 	size_t batch_start = 0;
-	render_mesh_id_t prev_mesh_id = ~0;
-	render_shader_id_t prev_shader_id = ~0;
+	render_mesh_id_t prev_mesh_id = ~0u;
+	render_shader_id_t prev_shader_id = ~0u;
 	for (size_t i = 0; i < sort_objects.length(); ++i)
 	{
 		render_dx12_sort_object_t& sort_object = sort_objects[i];
@@ -1043,7 +1042,7 @@ static void render_dx12_draw_pass(render_dx12_t* render, render_dx12_pass_contex
 		if (batch_count > 0)
 		{
 			size_t argument_offset = batch_start * sizeof(render_dx12_indirect_argument_t);
-			ctx.command_list->ExecuteIndirect(render->command_signature, batch_count, render->argument_buffer, argument_offset, nullptr, 0);
+			ctx.command_list->ExecuteIndirect(render->command_signature, (UINT)batch_count, render->argument_buffer, argument_offset, nullptr, 0);
 		}
 
 		const render_dx12_instance_t* instance = ctx.instances + sort_object.get_instanceal_id();
@@ -1072,7 +1071,7 @@ static void render_dx12_draw_pass(render_dx12_t* render, render_dx12_pass_contex
 	{
 		size_t batch_count = sort_objects.length() - batch_start;
 		size_t argument_offset = batch_start * sizeof(render_dx12_indirect_argument_t);
-		ctx.command_list->ExecuteIndirect(render->command_signature, batch_count, render->argument_buffer, argument_offset, nullptr, 0);
+		ctx.command_list->ExecuteIndirect(render->command_signature, (UINT)batch_count, render->argument_buffer, argument_offset, nullptr, 0);
 	}
 }
 
@@ -1115,7 +1114,7 @@ void render_dx12_kick_render(render_dx12_t* render, render_view_id_t view_id, re
 	UINT64 last_completed_fence = render->fence->GetCompletedValue();
 	if (last_completed_fence < frame.fence_value)
 	{
-		HRESULT hr = render->fence->SetEventOnCompletion(frame.fence_value, render->event);
+		hr = render->fence->SetEventOnCompletion(frame.fence_value, render->event);
 		ASSERT(SUCCEEDED(hr), "failed to set event on completion");
 		WaitForSingleObject(render->event, INFINITE);
 	}
@@ -1129,7 +1128,7 @@ void render_dx12_kick_render(render_dx12_t* render, render_view_id_t view_id, re
 	render->upload_ring.free_to_mark(frame.upload_fence_mark);
 
 	// Do beginning of frame barriers
-	frame.command_list->ResourceBarrier(barriers.length(), barriers.begin());
+	frame.command_list->ResourceBarrier((UINT)barriers.length(), barriers.begin());
 
 	// Start uploading instance and view data for everything
 	// TODO: don't do this for data that has not changed!
@@ -1147,9 +1146,9 @@ void render_dx12_kick_render(render_dx12_t* render, render_view_id_t view_id, re
 	for (size_t i = 0; i < ctx.num_instances; ++i)
 	{
 		const render_dx12_instance_t* instance = ctx.instances + i;
-		render_dx12_mesh_t* mesh = instance->mesh;
-		render_dx12_material_t* material = instance->material;
-		render_dx12_shader_t* shader = material->shader;
+		//render_dx12_mesh_t* mesh = instance->mesh;
+		//render_dx12_material_t* material = instance->material;
+		//render_dx12_shader_t* shader = material->shader;
 
 		memcpy(instance_data + i * 16, instance->data.transform, 16 * sizeof(float));
 	}
@@ -1157,7 +1156,7 @@ void render_dx12_kick_render(render_dx12_t* render, render_view_id_t view_id, re
 	barriers.clear();
 	render_dx12_push_barrier(barriers, render->instance_buffer, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_DEST);
 	render_dx12_push_barrier(barriers, view->constant_buffer, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, D3D12_RESOURCE_STATE_COPY_DEST);
-	frame.command_list->ResourceBarrier(barriers.length(), barriers.begin());
+	frame.command_list->ResourceBarrier((UINT)barriers.length(), barriers.begin());
 
 	frame.command_list->CopyBufferRegion(render->instance_buffer, 0, render->upload_resource, instance_data_offset, instance_size);
 	frame.command_list->CopyBufferRegion(view->constant_buffer, 0, render->upload_resource, view_data_offset, view_size);
@@ -1165,7 +1164,7 @@ void render_dx12_kick_render(render_dx12_t* render, render_view_id_t view_id, re
 	barriers.clear();
 	render_dx12_push_barrier(barriers, render->instance_buffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 	render_dx12_push_barrier(barriers, view->constant_buffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
-	frame.command_list->ResourceBarrier(barriers.length(), barriers.begin());
+	frame.command_list->ResourceBarrier((UINT)barriers.length(), barriers.begin());
 
 	for (size_t p = 0; p < script->num_passes; ++p)
 	{
@@ -1174,7 +1173,7 @@ void render_dx12_kick_render(render_dx12_t* render, render_view_id_t view_id, re
 
 	barriers.clear();
 	render_dx12_push_barrier(barriers, backbuffer.resource, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
-	frame.command_list->ResourceBarrier(barriers.length(), barriers.begin());
+	frame.command_list->ResourceBarrier((UINT)barriers.length(), barriers.begin());
 
 	hr = frame.command_list->Close();
 	ASSERT(SUCCEEDED(hr), "failed to close command list");
@@ -1224,7 +1223,7 @@ void render_dx12_kick_upload(render_dx12_t* render)
 	UINT64 last_completed_fence = render->copy_fence->GetCompletedValue();
 	if (last_completed_fence < frame_next.fence_value)
 	{
-		HRESULT hr = render->fence->SetEventOnCompletion(frame_next.fence_value, render->event);
+		hr = render->fence->SetEventOnCompletion(frame_next.fence_value, render->event);
 		ASSERT(SUCCEEDED(hr), "failed to set event on completion");
 		WaitForSingleObject(render->event, INFINITE);
 	}

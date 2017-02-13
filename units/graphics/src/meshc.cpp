@@ -148,11 +148,11 @@ int main(int argc, const char** argv)
 
 	mesh_data.vertex_data.layout_hash = vertex_layout_hash;
 	mesh_data.vertex_data.data.data = (uint8_t*)ALLOCATOR_ALLOC(&allocator_malloc, vertex_data_size, 16);
-	mesh_data.vertex_data.data.count = vertex_data_size;
+	mesh_data.vertex_data.data.count = (uint32_t)vertex_data_size;
 
 	mesh_data.index_data.data_type = index_element_type;
 	mesh_data.index_data.data.data = (uint8_t*)ALLOCATOR_ALLOC(&allocator_malloc, index_data_size, 16);
-	mesh_data.index_data.data.count = index_data_size;
+	mesh_data.index_data.data.count = (uint32_t)index_data_size;
 
 
 	uint8_t* vtx_ptr = &mesh_data.vertex_data.data[0];
@@ -212,7 +212,7 @@ int main(int argc, const char** argv)
 				{
 					case 2: // TODO: hax
 					{
-						uint16_t idx = faces[i].mIndices[j];
+						uint16_t idx = static_cast<uint16_t>(faces[i].mIndices[j]);
 						memcpy(idx_ptr, &idx, sizeof(idx));
 						idx_ptr += sizeof(idx);
 						break;

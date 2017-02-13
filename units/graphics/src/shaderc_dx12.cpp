@@ -1,15 +1,15 @@
 #if defined(FAMILY_WINDOWS)
 
-#include <core/defines.h>
-#include <core/hash.h>
+#include <foundation/defines.h>
+#include <foundation/hash.h>
 
 #include <d3dcompiler.h>
 #include <d3d12.h>
 
 #include <string>
 
-#include <units/shader/types/shader.h>
-#include <units/shader/types/shader_intermediate.h>
+#include <units/graphics/types/shader.h>
+#include <units/graphics/types/shader_intermediate.h>
 
 #define ERROR_AND_QUIT(fmt, ...) { fprintf(stderr, "Error: " fmt "\n", ##__VA_ARGS__); return 0x0; }
 #define ERROR_AND_FAIL(fmt, ...) { fprintf(stderr, "Error: " fmt "\n", ##__VA_ARGS__); return 1; }
@@ -22,7 +22,6 @@ static int compile_program_dx12(const std::string& code, int stage, uint8_t** ou
 
     ID3DBlob* error = NULL;
     ID3DBlob* shader = NULL;
-	const char* entry = "main";
 	const char* shader_model[] = {
 		"vs_5_1",
 		"hs_5_1",
@@ -73,7 +72,7 @@ bool compile_shader_dx12(shader_intermediate_t* shader_intermediate, shader_data
 	size_t num_properties = shader_intermediate->properties.count;
 	shader_property_dx12_t* properties = (shader_property_dx12_t*)malloc(num_properties * sizeof(shader_property_dx12_t));
 	shader_data->properties.data = properties;
-	shader_data->properties.count = num_properties;
+	shader_data->properties.count = (uint32_t)num_properties;
 
 	shader_constant_buffer_dx12_t* constant_buffers = shader_data->constant_buffers;
 	std::string constant_buffer_code[SHADER_FREQUENCY_MAX] = {};
@@ -99,7 +98,7 @@ bool compile_shader_dx12(shader_intermediate_t* shader_intermediate, shader_data
 				properties[i].pack_offset = constant_buffers[0].data.count;
 				constant_buffers[freq].data.count += shader_intermediate->properties[i].data.value.floats.count * sizeof(float); // TODO: alignment
 				constant_buffer_code[freq] += "\t float";
-				constant_buffer_code[freq] += _itoa(num, itoa_scratch, 10);
+				constant_buffer_code[freq] += _itoa((int)num, itoa_scratch, 10);
 				constant_buffer_code[freq] += " ";
 				constant_buffer_code[freq] += shader_intermediate->properties[i].name;
 				constant_buffer_code[freq] += ";\n";
@@ -113,7 +112,7 @@ bool compile_shader_dx12(shader_intermediate_t* shader_intermediate, shader_data
 				properties[i].pack_offset = constant_buffers[0].data.count;
 				constant_buffers[freq].data.count += shader_intermediate->properties[i].data.value.ints.count * sizeof(int32_t); // TODO: alignment
 				constant_buffer_code[freq] += "\t int";
-				constant_buffer_code[freq] += _itoa(num, itoa_scratch, 10);
+				constant_buffer_code[freq] += _itoa((int)num, itoa_scratch, 10);
 				constant_buffer_code[freq] += " ";
 				constant_buffer_code[freq] += shader_intermediate->properties[i].name;
 				constant_buffer_code[freq] += ";\n";
@@ -185,6 +184,8 @@ bool compile_shader_dx12(shader_intermediate_t* shader_intermediate, shader_data
 		if (res != 0)
 			ERROR_AND_FAIL("Shader failed to compile, see message above");
 	}
+
+	return true;
 }
 
 #endif
