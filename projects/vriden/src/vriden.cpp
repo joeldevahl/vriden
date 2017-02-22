@@ -10,6 +10,10 @@
 #include <foundation/vfs_mount_fs.h>
 #include <graphics/render.h>
 
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+
 #include <cstdio>
 
 #ifdef FAMILY_WINDOWS
@@ -102,10 +106,56 @@ int application_main(application_t* application)
 	ASSERT(render_res == RENDER_RESULT_OK, "failed create render");
 	resource_context.render = render;
 
+	render_view_create_info_t view_create_info;
+	glm::mat4x4 projection_matrix = glm::perspective(glm::radians(45.0f), 1280.0f/720.0f, 0.1f, 1000.0f);
+	glm::mat4x4 view_matrix = glm::lookAt(glm::vec3(0.0f, 0.0f, 150.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	memcpy(view_create_info.initial_data.proj_mat, glm::value_ptr(projection_matrix), sizeof(view_create_info.initial_data.proj_mat));
+	memcpy(view_create_info.initial_data.view_mat, glm::value_ptr(view_matrix), sizeof(view_create_info.initial_data.view_mat));
+	render_view_id_t view_id;
+	render_res = render_view_create(render, &view_create_info, &view_id);
+	ASSERT(render_res == RENDER_RESULT_OK, "failed create view");
+
+	render_target_t targets[] =
+	{
+		{ 0, 0, 0, "depth buffer" },
+	};
+
+	render_attachment_t color_attachments[] =
+	{
+		{ "back buffer" },
+	};
+
+	render_attachment_t depth_attachment =
+	{
+		"depth buffer",
+	};
+
+	render_command_t commands[1];
+	commands[0].type = 0; // TODO
+	commands[0].draw.dummy = 0; // TODO
+
+	render_pass_t passes[] =
+	{
+		{ 0, nullptr, &depth_attachment, ARRAY_LENGTH(commands), commands },
+		{ ARRAY_LENGTH(color_attachments), color_attachments, &depth_attachment, ARRAY_LENGTH(commands), commands },
+		{ ARRAY_LENGTH(color_attachments), color_attachments, nullptr, ARRAY_LENGTH(commands), commands },
+	};
+
+	render_script_create_info_t script_create_info;
+	script_create_info.num_transient_targets = ARRAY_LENGTH(targets);
+	script_create_info.transient_targets = targets;
+	script_create_info.num_passes = ARRAY_LENGTH(passes);
+	script_create_info.passes = passes;
+	render_script_id_t script_id;
+	render_res = render_script_create(render, &script_create_info, &script_id);
+	ASSERT(render_res == RENDER_RESULT_OK, "failed create script");
+
 	uint64_t max_time = 0;
 	while (application_is_running(application))
 	{
 		application_update(application);
+		
+		render_kick_render(render, view_id, script_id);
 
 		uint64_t start = time_current();
 		job_event_t* event = nullptr;
@@ -135,6 +185,9 @@ int application_main(application_t* application)
 	printf("Took max %f s to run jobs\n", max_time_float);
 #endif
 
+	render_wait_idle(render);
+	render_script_destroy(render, script_id);
+	render_view_destroy(render, view_id);
 	render_destroy(render);
 
 	resource_cache_destroy(resource_cache);
