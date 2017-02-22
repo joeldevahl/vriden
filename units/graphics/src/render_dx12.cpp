@@ -48,7 +48,7 @@ static ID3D12Resource* render_dx12_create_buffer(render_dx12_t* render, size_t n
 		initial_state,
 		nullptr,
 		IID_PPV_ARGS(&resource));
-	ASSERT(SUCCEEDED(hr), "failed to create commited resource");
+	ASSERT(SUCCEEDED(hr), "failed to create committed resource");
 
 	return resource;
 }
@@ -1068,8 +1068,9 @@ static void render_dx12_draw_pass(render_dx12_t* render, render_dx12_pass_contex
 	}
 
 	// Flush last batch
+	size_t batch_count = sort_objects.length() - batch_start;
+	if(batch_count > 0)
 	{
-		size_t batch_count = sort_objects.length() - batch_start;
 		size_t argument_offset = batch_start * sizeof(render_dx12_indirect_argument_t);
 		ctx.command_list->ExecuteIndirect(render->command_signature, (UINT)batch_count, render->argument_buffer, argument_offset, nullptr, 0);
 	}
