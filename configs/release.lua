@@ -15,7 +15,7 @@ function Config.warnings(self, settings)
 		settings.cc.flags:Add("-Werror")
 	elseif family == "windows" then
 		settings.cc.flags:Add("/WX") -- warnings as errors
-		settings.cc.flags:Add("/W4") -- Level 4 warning reports
+		settings.cc.flags:Add("/W3") -- Level 3 warning reports
 	end
 end
 
