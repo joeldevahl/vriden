@@ -1,11 +1,12 @@
 #include <foundation/array.h>
 #include <foundation/objpool.h>
 #include <foundation/circular_queue.h>
-#include <foundation/thread.h>
-#include <foundation/mutex.h>
-#include <foundation/condition.h>
 
 #include <foundation/vfs.h>
+
+#include <thread>
+#include <mutex>
+#include <condition_variable>
 
 typedef struct vfs_mount_t
 {
@@ -31,9 +32,9 @@ struct vfs_t
 	objpool_t<vfs_request_data_t, vfs_request_t> request_pool;
 	circular_queue_t<vfs_request_t> request_queue;
 
-	thread_t* thread;
-	mutex_t* mutex;
-	condition_t* cond;
+	std::thread thread;
+	std::mutex mutex;
+	std::condition_variable cond;
 };
 
 static void vfs_read_request(vfs_t* vfs, allocator_t* allocator, vfs_request_data_t* request)
@@ -53,34 +54,32 @@ static void vfs_read_request(vfs_t* vfs, allocator_t* allocator, vfs_request_dat
 	request->status = VFS_RESULT_FILE_NOT_FOUND;
 }
 
-static void vfs_thread(void* context)
+static void vfs_thread(vfs_t* vfs)
 {
-	vfs_t* vfs = (vfs_t*)context;
-
 	while(!vfs->thread_exit)
 	{
-		mutex_lock(vfs->mutex);
 
-		if(vfs->request_queue.empty())
+		vfs_request_data_t* request = nullptr;
 		{
-			condition_wait(vfs->cond, vfs->mutex);
+			std::unique_lock<std::mutex> lock(vfs->mutex);
+
+			if (vfs->request_queue.empty())
+			{
+				vfs->cond.wait(lock);
+			}
+
+			if (vfs->request_queue.any())
+			{
+				vfs_request_t id = vfs->request_queue.get();
+				request = vfs->request_pool.handle_to_pointer(id);
+			}
 		}
 
-		if(vfs->request_queue.any())
+		if (request != nullptr)
 		{
-			vfs_request_t id = vfs->request_queue.get();
-			vfs_request_data_t* request = vfs->request_pool.handle_to_pointer(id);
-			mutex_unlock(vfs->mutex);
-
 			vfs_read_request(vfs, vfs->allocator, request);
 		}
-		else
-		{
-			mutex_unlock(vfs->mutex);
-		}
 	}
-
-	thread_exit();
 }
 
 vfs_t* vfs_create(const vfs_create_params_t* params)
@@ -93,9 +92,8 @@ vfs_t* vfs_create(const vfs_create_params_t* params)
 	vfs->request_pool.create(params->allocator, params->max_requests);
 	vfs->request_queue.create(params->allocator, params->max_requests);
 
-	vfs->thread = thread_create("vfs", vfs_thread, vfs);
-	vfs->mutex = mutex_create();
-	vfs->cond = condition_create();
+
+	vfs->thread = std::thread(vfs_thread, vfs);
 
 	return vfs;
 }
@@ -103,11 +101,8 @@ vfs_t* vfs_create(const vfs_create_params_t* params)
 void vfs_destroy(vfs_t* vfs)
 {
 	vfs->thread_exit = true;
-	condition_broadcast(vfs->cond);
-	thread_join(vfs->thread);
-	condition_destroy(vfs->cond);
-	mutex_destroy(vfs->mutex);
-	thread_destroy(vfs->thread);
+	vfs->cond.notify_all();
+	vfs->thread.join();
 
 	ALLOCATOR_DELETE(vfs->allocator, vfs_t, vfs);
 }
@@ -138,10 +133,10 @@ vfs_result_t vfs_begin_request(vfs_t* vfs, const char* filename, vfs_request_t* 
 	request->data = NULL;
 	request->size = 0;
 	{
-		SCOPED_LOCK(vfs->mutex);
+		std::lock_guard<std::mutex> guard(vfs->mutex);
 		vfs->request_queue.put(id);
 	}
-	condition_signal(vfs->cond);
+	vfs->cond.notify_one();
 
 	*out_request = id;
 	return VFS_RESULT_OK;
@@ -156,8 +151,8 @@ vfs_result_t vfs_request_status(vfs_t* vfs, vfs_request_t request)
 vfs_result_t vfs_request_wait_not_pending(vfs_t* vfs, vfs_request_t request)
 {
 	vfs_request_data_t* request_ptr = vfs->request_pool.handle_to_pointer(request);
-	while(request_ptr->status == VFS_RESULT_PENDING)
-		thread_yield();
+	while (request_ptr->status == VFS_RESULT_PENDING)
+		std::this_thread::yield();
 	return request_ptr->status;
 }
 
@@ -175,7 +170,7 @@ vfs_result_t vfs_end_request(vfs_t* vfs, vfs_request_t request)
 	ASSERT(request_ptr->status != VFS_RESULT_PENDING, "cannot end pending requests (yet)");
 	ALLOCATOR_FREE(vfs->allocator, request_ptr->data);
 
-	SCOPED_LOCK(vfs->mutex);
+	std::lock_guard<std::mutex> lock(vfs->mutex);
 	vfs->request_pool.free_handle(request);
 
 	return VFS_RESULT_OK;

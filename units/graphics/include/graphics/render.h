@@ -1,15 +1,17 @@
 #pragma once
 
-#include <foundation/allocator.h>
-
 /* external types */
 #include <units/graphics/types/mesh.h>
 #include <units/graphics/types/shader.h>
 #include <units/graphics/types/material.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+/******************************************************************************\
+*
+*  Forward declares
+*
+\******************************************************************************/
+
+struct allocator_t;
 
 /******************************************************************************\
 *
@@ -189,7 +191,3 @@ render_result_t render_instance_set_data(render_t* render, size_t num_instances,
 void render_kick_render(render_t* render, render_view_id_t view_id, render_script_id_t script_id); // TODO: multiple views (stereo, shadow, etc)
 
 void render_kick_upload(render_t* render);
-
-#ifdef __cplusplus
-}
-#endif

@@ -4,7 +4,6 @@
 #include <foundation/hash.h>
 #include <foundation/job_system.h>
 #include <foundation/resource_cache.h>
-#include <foundation/thread.h>
 #include <foundation/time.h>
 #include <foundation/vfs.h>
 #include <foundation/vfs_mount_fs.h>

@@ -7,8 +7,6 @@
 #include <foundation/list.h>
 #include <foundation/objpool.h>
 
-#include <foundation/thread.h>
-#include <foundation/mutex.h>
 #include <foundation/job_system.h>
 
 #ifdef FAMILY_WINDOWS
@@ -22,6 +20,9 @@
 #include <cstdio> // For snprintf
 #include <unordered_map>
 #include <atomic>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
 
 enum job_command_t
 {
@@ -65,7 +66,7 @@ struct job_queue_slot_t : public list_node_t<job_queue_slot_t>
 struct job_context_t
 {
 	job_system_t* system;
-	thread_t* worker_thread;
+	std::thread worker_thread;
 	volatile uint32_t command;
 
 	allocator_t* incheap;
@@ -83,10 +84,12 @@ typedef std::unordered_map<uint32_t, job_entry_t> function_map; // TODO: use own
 
 struct job_system_t
 {
-	mutex_t* mutex;
+	std::mutex mutex;
+	std::condition_variable cond;
 
 	allocator_t* alloc;
-	array_t<job_context_t> threads;
+	uint16_t num_threads;
+	job_context_t* threads;
 	linked_list_t<job_queue_slot_t> queue;
 	linked_list_t<job_queue_slot_t> free_slots;
 	objpool_t<job_cached_function_t, uint16_t> cached_functions;
@@ -98,7 +101,7 @@ struct job_system_t
 	size_t max_job_argument_size;
 	size_t job_argument_alignment;
 
-	uint64_t main_thread_id;
+	std::thread::id main_thread_id;
 	job_context_t main_thread_context;
 };
 
@@ -120,21 +123,21 @@ static job_queue_slot_t* job_get_one(job_system_t* system)
 	return job;
 }
 
-static void job_run_one(job_system_t* system, job_context_t* context)
+static void job_run_one(job_system_t* system, job_context_t* context, bool returnIfNone)
 {
 	// TODO: a lot of locking going on :/ Rewrite most of it with atomic queues
-	mutex_lock(system->mutex);
+	std::unique_lock<std::mutex> lock(system->mutex);
 	if (system->queue.empty())
 	{
-		mutex_unlock(system->mutex);
-		thread_yield(); // TODO: sleep on condition/semaphore?
-		mutex_lock(system->mutex);
+		if (returnIfNone) // Less than elegant, but we need to early out if we are waiting and the queue becomes empty
+			return;
+		system->cond.wait(lock);
 	}
 
 	job_queue_slot_t* job = job_get_one(system);
 	if (job)
 	{
-		mutex_unlock(system->mutex);
+		lock.unlock();
 
 		context->curr_job = job;
 		job->function(context, &job->data);
@@ -146,7 +149,7 @@ static void job_run_one(job_system_t* system, job_context_t* context)
 			--job->result->num_left;
 		}
 
-		mutex_lock(system->mutex);
+		lock.lock();
 
 		if (job->depends)
 		{
@@ -157,44 +160,39 @@ static void job_run_one(job_system_t* system, job_context_t* context)
 
 		system->free_slots.push_back(job);
 	}
-	mutex_unlock(system->mutex);
 }
 
-static void job_thread_main(void* ptr)
+static void job_thread_main(job_context_t* context)
 {
-	job_context_t* context = reinterpret_cast<job_context_t*>(ptr);
 	job_system_t* system = context->system;
 
 	while(context->command != JOB_COMMAND_EXIT)
 	{
-		job_run_one(system, context);
+		job_run_one(system, context, false);
 	}
-	thread_exit();
 }
 
 job_system_t* job_system_create(const job_system_create_params_t* params)
 {
 	job_system_t* system = ALLOCATOR_NEW(params->alloc, job_system_t);
 
-	system->mutex = mutex_create();
-
 	system->alloc = params->alloc;
 
-	system->threads.create(system->alloc, params->num_threads);
 	system->cached_functions.create(system->alloc, params->max_cached_functions);
 
-	system->threads.set_length(system->threads.capacity());
-	for(size_t i = 0; i < system->threads.length(); ++i)
+	system->num_threads = params->num_threads;
+	system->threads = ALLOCATOR_NEW_ARRAY(system->alloc, params->num_threads, job_context_t);
+	for(size_t i = 0; i < params->num_threads; ++i)
 	{
 		system->threads[i].system = system;
 		system->threads[i].incheap = allocator_incheap_create(system->alloc, params->worker_thread_temp_size);
-		system->threads[i].worker_thread = thread_create("job_thread", job_thread_main, &system->threads[i]);
+		system->threads[i].worker_thread = std::thread(job_thread_main, &system->threads[i]);
 	}
 
 	system->max_job_argument_size = params->max_job_argument_size;
 	system->job_argument_alignment = params->job_argument_alignment;
 
-	system->main_thread_id = thread_get_current_id(); // Assume creation thread is main thread
+	system->main_thread_id = std::this_thread::get_id(); // Assume creation thread is main thread
 	memset(&system->main_thread_context, 0, sizeof(system->main_thread_context));
 	system->main_thread_context.system = system;
 	system->main_thread_context.incheap = allocator_incheap_create(system->alloc, params->worker_thread_temp_size);
@@ -204,17 +202,19 @@ job_system_t* job_system_create(const job_system_create_params_t* params)
 
 void job_system_destroy(job_system_t* system)
 {
-	for(size_t i = 0; i < system->threads.length(); ++i)
+	for(size_t i = 0; i < system->num_threads; ++i)
 	{
 		system->threads[i].command = JOB_COMMAND_EXIT;
 	}
 
-	for(size_t i = 0; i < system->threads.length(); ++i)
+	system->cond.notify_all();
+
+	for(size_t i = 0; i < system->num_threads; ++i)
 	{
-		thread_join(system->threads[i].worker_thread);
-		thread_destroy(system->threads[i].worker_thread);
+		system->threads[i].worker_thread.join();
 		allocator_incheap_destroy(system->threads[i].incheap);
 	}
+	ALLOCATOR_DELETE_ARRAY(system->alloc, system->num_threads, job_context_t, system->threads);
 
 	while (job_queue_slot_t* job = system->queue.pop_front())
 	{
@@ -240,8 +240,6 @@ void job_system_destroy(job_system_t* system)
 		dlclose(i.second.handle);
 #endif //#if defined(FAMILY_*)
 	}
-
-	mutex_destroy(system->mutex);
 
 	ALLOCATOR_DELETE(system->alloc, job_system_t, system);
 }
@@ -381,32 +379,30 @@ job_system_result_t job_system_release_cached_function(job_system_t* system, job
 
 job_system_result_t job_system_acquire_event(job_system_t* system, job_event_t** out_event)
 {
-	ASSERT(thread_get_current_id() == system->main_thread_id);
+	ASSERT(std::this_thread::get_id() == system->main_thread_id);
 	ASSERT(out_event != nullptr);
 
-	mutex_lock(system->mutex);
+	std::lock_guard<std::mutex> lock(system->mutex);
 	*out_event = system->free_events.pop_front();
 	if (*out_event == nullptr)
 	{
 		*out_event = ALLOCATOR_ALLOC_TYPE(system->alloc, job_event_t);
 		memset(*out_event, 0, sizeof(**out_event));
 	}
-	mutex_unlock(system->mutex);
 
 	return JOB_SYSTEM_OK;
 }
 
 job_system_result_t job_system_release_event(job_system_t* system, job_event_t* event)
 {
-	ASSERT(thread_get_current_id() == system->main_thread_id);
+	ASSERT(std::this_thread::get_id() == system->main_thread_id);
 	ASSERT(event->num_left == 0);
 
-	mutex_lock(system->mutex);
+	std::lock_guard<std::mutex> lock(system->mutex);
 	uint64_t num_left = --event->deps;
 	if (num_left == 0)
 		system->free_events.push_back(event);
 
-	mutex_unlock(system->mutex);
 
 	return JOB_SYSTEM_OK;
 }
@@ -418,11 +414,11 @@ bool job_system_test_event(job_system_t* /*system*/, job_event_t* event)
 
 job_system_result_t job_system_wait_event(job_system_t* system, job_event_t* event)
 {
-	ASSERT(thread_get_current_id() == system->main_thread_id);
+	ASSERT(std::this_thread::get_id() == system->main_thread_id);
 
 	while (event->num_left != 0)
 	{
-		job_run_one(system, &system->main_thread_context);
+		job_run_one(system, &system->main_thread_context, true);
 	}
 
 	return JOB_SYSTEM_OK;
@@ -477,16 +473,16 @@ static job_system_result_t job_system_enqueue_jobs(job_system_t* system, job_fun
 		system->queue.push_back(slot);
 	}
 
+	system->cond.notify_all();
+
 	return JOB_SYSTEM_OK;
 }
 
 job_system_result_t job_system_kick_ptr(job_system_t* system, job_function_t function, size_t num_jobs, void** args, size_t arg_size, job_event_t* depends, job_event_t* event)
 {
-	mutex_lock(system->mutex);
+	std::lock_guard<std::mutex> lock(system->mutex);
 
 	job_system_result_t res = job_system_enqueue_jobs(system, function, num_jobs, args, arg_size, depends, event);
-
-	mutex_unlock(system->mutex);
 
 	return res;
 }
@@ -515,12 +511,10 @@ job_system_result_t job_context_call(job_context_t* context, job_cached_function
 
 job_system_result_t job_context_kick_ptr(job_context_t* context, job_function_t function, size_t num_jobs, void** args, size_t arg_size)
 {
-	mutex_lock(context->system->mutex);
+	std::lock_guard<std::mutex> lock(context->system->mutex);
 
 	job_event_t* event = context->curr_job->result != nullptr ? context->curr_job->result : nullptr;
 	job_system_result_t res = job_system_enqueue_jobs(context->system, function, num_jobs, args, arg_size, context->curr_job->depends, event);
-
-	mutex_unlock(context->system->mutex);
 
 	return res;
 }

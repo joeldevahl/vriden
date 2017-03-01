@@ -1,4 +1,5 @@
 #include "render_null.h"
+#include <foundation/allocator.h>
 #include <foundation/hash.h>
 
 #include <algorithm>
