@@ -1,0 +1,12 @@
+{
+  "vertex_layout_t": {
+    "stride": 12,
+    "elements": [
+      {
+        "element_type": "ELEMENT_TYPE_POSITION",
+        "data_type": 0,
+        "count": 3
+      }
+    ]
+  }
+}

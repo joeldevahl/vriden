@@ -7,6 +7,29 @@ function Unit.Init(self)
 	self.targetname = "vriden"
 end
 
+function Unit.BuildTarget(self)
+	local data = {
+		"data/programs/*.vp",
+		"data/programs/*.fp",
+		"data/vertex_layouts/*.vl",
+		"data/meshes/*.mesh",
+		"data/shaders/*.shader",
+		"data/materials/*.material",
+	}
+	for _,d in ipairs(data) do
+		for _,r in pairs(Compile(self.settings, Collect(PathJoin(self.path, d)))) do
+			self:AddProduct(r)
+		end
+	end
+
+	-- TODO: don't write this all the time
+	file = io.open(PathJoin(target.outdir, "vriden_precache.txt"), "wb")
+	for v in TableWalk(self.target_products[target]) do
+		file:write(string.gsub(v, target.outdir .. "/", "") .. "\n")
+	end
+	file:close()
+end
+
 function Unit.Build(self)
 	if target.family == "windows" then
 		self.settings.dll.libs:Add("user32")

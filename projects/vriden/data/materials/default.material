@@ -1,0 +1,9 @@
+// dep source projects/vriden/data/shaders/default.shader
+{
+	"material_intermediate_t": {
+		"properties" : [
+			{ "name" : "color", "value" : [1.0, 0.0, 1.0, 1.0] }
+		],
+		"shader_name": "projects/vriden/data/shaders/default.shader"
+	}
+}

@@ -1,0 +1,14 @@
+// dep source projects/vriden/data/vertex_layouts/pos3f.vl
+// dep source projects/vriden/data/meshes/plane_xy.obj
+{
+	"mesh_intermediate_t" : {
+		"source" : "projects/vriden/data/meshes/plane_xy.obj",
+		"vertex_stream" : {
+			"index" : 0,
+			"layout" : "projects/vriden/data/vertex_layouts/pos3f.vl"
+		},
+		"index_stream" : {
+			"data_type" : 2
+		}
+	}
+}
