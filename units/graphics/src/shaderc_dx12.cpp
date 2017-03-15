@@ -30,7 +30,7 @@ static int compile_program_dx12(const std::string& code, int stage, uint8_t** ou
 		"ps_5_1",
 	};
 
-	printf("compiling code:\n%s\n", code.c_str());
+	//printf("compiling code:\n%s\n", code.c_str());
 
     HRESULT hr = D3DCompile2(code.c_str(),
 							code.size(),
