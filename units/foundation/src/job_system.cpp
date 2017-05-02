@@ -88,8 +88,7 @@ struct job_system_t
 	std::condition_variable cond;
 
 	allocator_t* alloc;
-	uint16_t num_threads;
-	job_context_t* threads;
+	array_t<job_context_t> threads;
 	linked_list_t<job_queue_slot_t> queue;
 	linked_list_t<job_queue_slot_t> free_slots;
 	objpool_t<job_cached_function_t, uint16_t> cached_functions;
@@ -180,13 +179,16 @@ job_system_t* job_system_create(const job_system_create_params_t* params)
 
 	system->cached_functions.create(system->alloc, params->max_cached_functions);
 
-	system->num_threads = params->num_threads;
-	system->threads = ALLOCATOR_NEW_ARRAY(system->alloc, params->num_threads, job_context_t);
+	system->threads.create(system->alloc, params->num_threads);
 	for(size_t i = 0; i < params->num_threads; ++i)
 	{
+		new (&system->threads[i]) job_context_t();
+
 		system->threads[i].system = system;
-		system->threads[i].incheap = allocator_incheap_create(system->alloc, params->worker_thread_temp_size);
 		system->threads[i].worker_thread = std::thread(job_thread_main, &system->threads[i]);
+		system->threads[i].command = JOB_COMMAND_READY;
+		system->threads[i].incheap = allocator_incheap_create(system->alloc, params->worker_thread_temp_size);
+		system->threads[i].curr_job = nullptr;
 	}
 
 	system->max_job_argument_size = params->max_job_argument_size;
@@ -202,19 +204,19 @@ job_system_t* job_system_create(const job_system_create_params_t* params)
 
 void job_system_destroy(job_system_t* system)
 {
-	for(size_t i = 0; i < system->num_threads; ++i)
+	for(size_t i = 0; i < system->threads.length(); ++i)
 	{
 		system->threads[i].command = JOB_COMMAND_EXIT;
 	}
 
 	system->cond.notify_all();
 
-	for(size_t i = 0; i < system->num_threads; ++i)
+	for(size_t i = 0; i < system->threads.length(); ++i)
 	{
 		system->threads[i].worker_thread.join();
 		allocator_incheap_destroy(system->threads[i].incheap);
+		system->threads[i].~job_context_t();
 	}
-	ALLOCATOR_DELETE_ARRAY(system->alloc, system->num_threads, job_context_t, system->threads);
 
 	while (job_queue_slot_t* job = system->queue.pop_front())
 	{
