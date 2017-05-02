@@ -41,9 +41,7 @@ void allocator_free_wrapper(allocator_t* allocator, void* memory, const char* fi
 #else
 #	error not defined for this platform
 #endif
-#define ALLOCATOR_NEW_ARRAY(allocator, count, type) (new (allocator_alloc_wrapper((allocator), (count), sizeof(type), ALIGNOF(type), __FILE__, __LINE__)) type[count])
 #define ALLOCATOR_DELETE(allocator, type, ptr) do{ if(ptr){ (ptr)->~type(); allocator_free_wrapper(allocator, ptr, __FILE__, __LINE__); } }while(0)
-#define ALLOCATOR_DELETE_ARRAY(allocator, count, type, ptr) do{ if(ptr){ for(size_t i = 0, c = (count); i < c; ++i) (ptr)[i].~type(); allocator_free_wrapper(allocator, ptr, __FILE__, __LINE__); } }while(0)
 
 extern allocator_t allocator_malloc;
 
