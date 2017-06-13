@@ -14,3 +14,7 @@ vriden.VC.db
 vriden.sln
 local/
 .bam/
+.vs/
+vc140.pdb
+*.vspx
+*.user
