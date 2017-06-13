@@ -294,7 +294,11 @@ static void dl_txt_unpack_array( dl_ctx_t dl_ctx, dl_txt_unpack_ctx* unpack_ctx,
 		{
 			uintptr_t* mem = (uintptr_t*)array_data;
 			for( uint32_t i = 0; i < array_count - 1; ++i )
+			{
 				dl_txt_unpack_ptr( writer, mem[i] );
+				dl_binary_writer_write( writer, ", ", 2 );
+			}
+			dl_txt_unpack_ptr( writer, mem[array_count - 1] );
 			unpack_ctx->has_ptrs = true;
 			break;
 		}
@@ -401,11 +405,60 @@ static void dl_txt_unpack_member( dl_ctx_t dl_ctx, dl_txt_unpack_ctx* unpack_ctx
 	}
 }
 
+static void dl_txt_unpack_write_subdata( dl_ctx_t dl_ctx, dl_txt_unpack_ctx* unpack_ctx, dl_binary_writer* writer, const dl_type_desc* type, const uint8_t* struct_data );
+
+static void dl_txt_unpack_write_subdata_ptr( dl_ctx_t            dl_ctx,
+											 dl_txt_unpack_ctx*  unpack_ctx,
+											 dl_binary_writer*   writer,
+											 const uint8_t*      ptrptr,
+											 const dl_type_desc* sub_type )
+{
+	uintptr_t offset = *(uintptr_t*)( ptrptr );
+	if( offset == (uintptr_t)-1 )
+		return;
+	if( offset == 0 )
+		return;
+
+	for( int i = 0; i < unpack_ctx->ptrs_count; ++i )
+		if( unpack_ctx->ptrs[i].offset == offset )
+			return;
+
+	// TODO: overflow!
+	unpack_ctx->ptrs[unpack_ctx->ptrs_count++].offset = offset;
+
+	dl_txt_unpack_write_indent( writer, unpack_ctx );
+	dl_txt_unpack_ptr( writer, offset );
+	dl_binary_writer_write( writer, " : ", 3 );
+
+	dl_txt_unpack_struct( dl_ctx, unpack_ctx, writer, sub_type, &unpack_ctx->packed_instance[offset] );
+
+	// TODO: extra , at last elem =/
+	dl_binary_writer_write( writer, ",\n", 2 );
+
+	dl_txt_unpack_write_subdata( dl_ctx, unpack_ctx, writer, sub_type, &unpack_ctx->packed_instance[offset] );
+}
+
+static void dl_txt_unpack_write_subdata_ptr_array( dl_ctx_t            dl_ctx,
+											 	   dl_txt_unpack_ctx*  unpack_ctx,
+												   dl_binary_writer*   writer,
+												   const uint8_t*      array,
+												   uint32_t            array_count,
+												   const dl_type_desc* sub_type )
+{
+	for( uint32_t element = 0; element < array_count; ++element )
+		dl_txt_unpack_write_subdata_ptr( dl_ctx,
+										 unpack_ctx,
+										 writer,
+										 array + sizeof(void*) * element,
+										 sub_type );
+}
+
 static void dl_txt_unpack_write_subdata( dl_ctx_t dl_ctx, dl_txt_unpack_ctx* unpack_ctx, dl_binary_writer* writer, const dl_type_desc* type, const uint8_t* struct_data )
 {
 	for( uint32_t member_index = 0; member_index < type->member_count; ++member_index )
 	{
 		const dl_member_desc* member = dl_get_type_member( dl_ctx, type, member_index );
+		const uint8_t* member_data = struct_data + member->offset[DL_PTR_SIZE_HOST];
 		switch( member->AtomType() )
 		{
 			case DL_TYPE_ATOM_POD:
@@ -413,43 +466,22 @@ static void dl_txt_unpack_write_subdata( dl_ctx_t dl_ctx, dl_txt_unpack_ctx* unp
 				switch( member->StorageType() )
 				{
 					case DL_TYPE_STORAGE_PTR:
-					{
-						uintptr_t offset = *(uintptr_t*)( struct_data + member->offset[DL_PTR_SIZE_HOST] );
-						if( offset == (uintptr_t)-1 )
-							continue;
-						if( offset == 0 )
-							continue;
-
-						bool found = false;
-						for( int i = 0; i < unpack_ctx->ptrs_count && !found; ++i )
-							if( unpack_ctx->ptrs[i].offset == offset )
-								found = true;
-
-						if( !found )
-						{
-							// TODO: overflow!
-							unpack_ctx->ptrs[unpack_ctx->ptrs_count++].offset = offset;
-
-							dl_txt_unpack_write_indent( writer, unpack_ctx );
-							dl_txt_unpack_ptr( writer, offset );
-							dl_binary_writer_write( writer, " : ", 3 );
-
-							const dl_type_desc* subtype = dl_internal_find_type( dl_ctx, member->type_id );
-							dl_txt_unpack_struct( dl_ctx, unpack_ctx, writer, subtype, &unpack_ctx->packed_instance[offset] );
-
-							// TODO: extra , at last elem =/
-							dl_binary_writer_write( writer, ",\n", 2 );
-
-							dl_txt_unpack_write_subdata( dl_ctx, unpack_ctx, writer, subtype, &unpack_ctx->packed_instance[offset] );
-						}
-					}
+						dl_txt_unpack_write_subdata_ptr( dl_ctx,
+														 unpack_ctx,
+														 writer,
+														 member_data,
+														 dl_internal_find_type( dl_ctx, member->type_id ) );
 					break;
 
 					case DL_TYPE_STORAGE_STRUCT:
 					{
 						const dl_type_desc* subtype = dl_internal_find_type( dl_ctx, member->type_id );
 						if( subtype->flags & DL_TYPE_FLAG_HAS_SUBDATA )
-							dl_txt_unpack_write_subdata( dl_ctx, unpack_ctx, writer, subtype, struct_data + member->offset[DL_PTR_SIZE_HOST] );
+							dl_txt_unpack_write_subdata( dl_ctx,
+														 unpack_ctx,
+														 writer,
+														 subtype,
+														 member_data );
 					}
 					break;
 					default:
@@ -459,6 +491,21 @@ static void dl_txt_unpack_write_subdata( dl_ctx_t dl_ctx, dl_txt_unpack_ctx* unp
 			}
 			break;
 			case DL_TYPE_ATOM_INLINE_ARRAY:
+			{
+				switch( member->StorageType() )
+				{
+					case DL_TYPE_STORAGE_PTR:
+						dl_txt_unpack_write_subdata_ptr_array( dl_ctx,
+															   unpack_ctx,
+															   writer,
+															   member_data,
+															   member->inline_array_cnt(),
+															   dl_internal_find_type( dl_ctx, member->type_id ) );
+					break;
+					default:
+						DL_ASSERT(false);
+				}
+			}
 			break;
 			case DL_TYPE_ATOM_ARRAY:
 			{
@@ -469,13 +516,26 @@ static void dl_txt_unpack_write_subdata( dl_ctx_t dl_ctx, dl_txt_unpack_ctx* unp
 						const dl_type_desc* subtype = dl_internal_find_type( dl_ctx, member->type_id );
 						if( subtype->flags & DL_TYPE_FLAG_HAS_SUBDATA )
 						{
-							uintptr_t array_offset = *(uintptr_t*)(struct_data + member->offset[DL_PTR_SIZE_HOST]);
-							uint32_t  array_count  = *(uint32_t*)(struct_data + member->offset[DL_PTR_SIZE_HOST] + sizeof(uintptr_t) );
+							uintptr_t array_offset = *(uintptr_t*)(member_data);
+							uint32_t  array_count  = *(uint32_t*)(member_data + sizeof(uintptr_t));
 							const uint8_t* array = unpack_ctx->packed_instance + array_offset;
 							for( uint32_t i = 0; i < array_count; ++i )
 								dl_txt_unpack_write_subdata( dl_ctx, unpack_ctx, writer, subtype, array + i * subtype->size[DL_PTR_SIZE_HOST] );
 						}
 					}
+					case DL_TYPE_STORAGE_PTR:
+					{
+						uintptr_t array_offset = *(uintptr_t*)(member_data);
+						uint32_t  array_count  = *(uint32_t*)(member_data + sizeof(uintptr_t) );
+						const uint8_t* array = unpack_ctx->packed_instance + array_offset;
+						dl_txt_unpack_write_subdata_ptr_array( dl_ctx,
+															   unpack_ctx,
+															   writer,
+															   array,
+															   array_count,
+															   dl_internal_find_type( dl_ctx, member->type_id ) );
+					}
+					break;
 					default:
 						// ignore ...
 						break;

@@ -46,9 +46,9 @@ static void dl_txt_pack_eat_and_write_int8( dl_ctx_t dl_ctx, dl_txt_pack_ctx* pa
 		char* next = 0x0;
 		v = strtol( packctx->read_ctx.iter, &next, 0 );
 		if( packctx->read_ctx.iter == next )
-			dl_txt_read_failed( dl_ctx, &packctx->read_ctx, DL_ERROR_MALFORMED_DATA, "expected int8" );
+			dl_txt_read_failed( dl_ctx, &packctx->read_ctx, DL_ERROR_MALFORMED_DATA, "expected a value of type 'int8'" );
 		if( !dl_long_in_range( v, INT8_MIN, INT8_MAX ) )
-			dl_txt_read_failed( dl_ctx, &packctx->read_ctx, DL_ERROR_TXT_RANGE_ERROR, "expected int8, %d is out of range.", (int)v );
+			dl_txt_read_failed( dl_ctx, &packctx->read_ctx, DL_ERROR_TXT_RANGE_ERROR, "expected a value of type 'int8', %d is out of range.", (int)v );
 		packctx->read_ctx.iter = next;
 	}
 	dl_binary_writer_write_int8( packctx->writer, (int8_t)v );
@@ -63,9 +63,9 @@ static void dl_txt_pack_eat_and_write_int16( dl_ctx_t dl_ctx, dl_txt_pack_ctx* p
 		char* next = 0x0;
 		v = strtol( packctx->read_ctx.iter, &next, 0 );
 		if( packctx->read_ctx.iter == next )
-			dl_txt_read_failed( dl_ctx, &packctx->read_ctx, DL_ERROR_MALFORMED_DATA, "expected int16" );
+			dl_txt_read_failed( dl_ctx, &packctx->read_ctx, DL_ERROR_MALFORMED_DATA, "expected a value of type 'int16'" );
 		if( !dl_long_in_range( v, INT16_MIN, INT16_MAX ) )
-			dl_txt_read_failed( dl_ctx, &packctx->read_ctx, DL_ERROR_TXT_RANGE_ERROR, "expected int16, %d is out of range.", (int)v );
+			dl_txt_read_failed( dl_ctx, &packctx->read_ctx, DL_ERROR_TXT_RANGE_ERROR, "expected a value of type 'int16', %d is out of range.", (int)v );
 		packctx->read_ctx.iter = next;
 	}
 	dl_binary_writer_write_int16( packctx->writer, (int16_t)v );
@@ -80,7 +80,7 @@ static void dl_txt_pack_eat_and_write_int32( dl_ctx_t dl_ctx, dl_txt_pack_ctx* p
 		char* next = 0x0;
 		v = strtol( packctx->read_ctx.iter, &next, 0 );
 		if( packctx->read_ctx.iter == next )
-			dl_txt_read_failed( dl_ctx, &packctx->read_ctx, DL_ERROR_MALFORMED_DATA, "expected int32" );
+			dl_txt_read_failed( dl_ctx, &packctx->read_ctx, DL_ERROR_MALFORMED_DATA, "expected a value of type 'int32'" );
 		packctx->read_ctx.iter = next;
 	}
 	dl_binary_writer_write_int32( packctx->writer, (int32_t)v );
@@ -95,7 +95,7 @@ static void dl_txt_pack_eat_and_write_int64( dl_ctx_t dl_ctx, dl_txt_pack_ctx* p
 		char* next = 0x0;
 		v = strtoll( packctx->read_ctx.iter, &next, 0 );
 		if( packctx->read_ctx.iter == next )
-			dl_txt_read_failed( dl_ctx, &packctx->read_ctx, DL_ERROR_MALFORMED_DATA, "expected int64" );
+			dl_txt_read_failed( dl_ctx, &packctx->read_ctx, DL_ERROR_MALFORMED_DATA, "expected a value of type 'int64'" );
 		packctx->read_ctx.iter = next;
 	}
 	dl_binary_writer_write_int64( packctx->writer, (int64_t)v );
@@ -110,9 +110,9 @@ static void dl_txt_pack_eat_and_write_uint8( dl_ctx_t dl_ctx, dl_txt_pack_ctx* p
 		char* next = 0x0;
 		v = strtoul( packctx->read_ctx.iter, &next, 0 );
 		if( packctx->read_ctx.iter == next )
-			dl_txt_read_failed( dl_ctx, &packctx->read_ctx, DL_ERROR_MALFORMED_DATA, "expected uint8" );
+			dl_txt_read_failed( dl_ctx, &packctx->read_ctx, DL_ERROR_MALFORMED_DATA, "expected a value of type 'uint8'" );
 		if( v > UINT8_MAX )
-			dl_txt_read_failed( dl_ctx, &packctx->read_ctx, DL_ERROR_TXT_RANGE_ERROR, "expected uint8, %d is out of range.", (int)v );
+			dl_txt_read_failed( dl_ctx, &packctx->read_ctx, DL_ERROR_TXT_RANGE_ERROR, "expected a value of type 'uint8', %d is out of range.", (int)v );
 		packctx->read_ctx.iter = next;
 	}
 	dl_binary_writer_write_uint8( packctx->writer, (uint8_t)v );
@@ -127,9 +127,9 @@ static void dl_txt_pack_eat_and_write_uint16( dl_ctx_t dl_ctx, dl_txt_pack_ctx* 
 		char* next = 0x0;
 		v = strtoul( packctx->read_ctx.iter, &next, 0 );
 		if( packctx->read_ctx.iter == next )
-			dl_txt_read_failed( dl_ctx, &packctx->read_ctx, DL_ERROR_MALFORMED_DATA, "expected uint16" );
+			dl_txt_read_failed( dl_ctx, &packctx->read_ctx, DL_ERROR_MALFORMED_DATA, "expected a value of type 'uint16'" );
 		if( v > UINT16_MAX )
-			dl_txt_read_failed( dl_ctx, &packctx->read_ctx, DL_ERROR_TXT_RANGE_ERROR, "expected uint16, %d is out of range.", (int)v );
+			dl_txt_read_failed( dl_ctx, &packctx->read_ctx, DL_ERROR_TXT_RANGE_ERROR, "expected a value of type 'uint16', %d is out of range.", (int)v );
 		packctx->read_ctx.iter = next;
 	}
 	dl_binary_writer_write_uint16( packctx->writer, (uint16_t)v );
@@ -144,7 +144,7 @@ static void dl_txt_pack_eat_and_write_uint32( dl_ctx_t dl_ctx, dl_txt_pack_ctx* 
 		char* next = 0x0;
 		v = strtoul( packctx->read_ctx.iter, &next, 0 );
 		if( packctx->read_ctx.iter == next )
-			dl_txt_read_failed( dl_ctx, &packctx->read_ctx, DL_ERROR_MALFORMED_DATA, "expected uint32" );
+			dl_txt_read_failed( dl_ctx, &packctx->read_ctx, DL_ERROR_MALFORMED_DATA, "expected a value of type 'uint32'" );
 		packctx->read_ctx.iter = next;
 	}
 	dl_binary_writer_write_uint32( packctx->writer, (uint32_t)v );
@@ -159,7 +159,7 @@ static uint64_t dl_txt_pack_eat_uint64( dl_ctx_t dl_ctx, dl_txt_pack_ctx* packct
 		char* next = 0x0;
 		v = strtoull( packctx->read_ctx.iter, &next, 0 );
 		if( packctx->read_ctx.iter == next )
-			dl_txt_read_failed( dl_ctx, &packctx->read_ctx, DL_ERROR_MALFORMED_DATA, "expected uint64" );
+			dl_txt_read_failed( dl_ctx, &packctx->read_ctx, DL_ERROR_MALFORMED_DATA, "expected a value of type 'uint64'" );
 		packctx->read_ctx.iter = next;
 	}
 	return (uint64_t)v;
@@ -177,7 +177,7 @@ static void dl_txt_pack_eat_and_write_fp32( dl_ctx_t dl_ctx, dl_txt_pack_ctx* pa
 	char* next = 0x0;
 	float v = strtof( packctx->read_ctx.iter, &next );
 	if( packctx->read_ctx.iter == next )
-		dl_txt_read_failed( dl_ctx, &packctx->read_ctx, DL_ERROR_MALFORMED_DATA, "expected fp32" );
+		dl_txt_read_failed( dl_ctx, &packctx->read_ctx, DL_ERROR_MALFORMED_DATA, "expected a value of type 'fp32'" );
 	packctx->read_ctx.iter = next;
 	dl_binary_writer_write_fp32( packctx->writer, v );
 }
@@ -188,57 +188,64 @@ static void dl_txt_pack_eat_and_write_fp64( dl_ctx_t dl_ctx, dl_txt_pack_ctx* pa
 	char* next = 0x0;
 	double v = strtod( packctx->read_ctx.iter, &next );
 	if( packctx->read_ctx.iter == next )
-		dl_txt_read_failed( dl_ctx, &packctx->read_ctx, DL_ERROR_MALFORMED_DATA, "expected fp64" );
+		dl_txt_read_failed( dl_ctx, &packctx->read_ctx, DL_ERROR_MALFORMED_DATA, "expected a value of type 'fp64'" );
 	packctx->read_ctx.iter = next;
 	dl_binary_writer_write_fp64( packctx->writer, v );
 }
 
-static void dl_txt_pack_eat_and_write_string( dl_ctx_t dl_ctx, dl_txt_pack_ctx* packctx )
+static bool dl_txt_pack_eat_and_write_null(dl_txt_pack_ctx* packctx)
 {
 	dl_txt_eat_white( &packctx->read_ctx );
 	if( strncmp( packctx->read_ctx.iter, "null", 4 ) == 0 )
 	{
 		dl_binary_writer_write_ptr( packctx->writer, (uintptr_t)-1 );
 		packctx->read_ctx.iter += 4;
+		return true;
 	}
-	else
-	{
-		dl_txt_read_substr str = dl_txt_eat_string( &packctx->read_ctx );
-		if( str.str == 0x0 )
-			dl_txt_read_failed( dl_ctx, &packctx->read_ctx, DL_ERROR_MALFORMED_DATA, "expected string or null" );
+	return false;
+}
 
-		size_t curr = dl_binary_writer_tell( packctx->writer );
-		dl_binary_writer_seek_end( packctx->writer );
-		size_t strpos = dl_binary_writer_tell( packctx->writer );
-		for( int i = 0; i < str.len; ++i )
+static void dl_txt_pack_eat_and_write_string( dl_ctx_t dl_ctx, dl_txt_pack_ctx* packctx )
+{
+	dl_txt_eat_white( &packctx->read_ctx );
+	if( dl_txt_pack_eat_and_write_null(packctx) )
+		return;
+
+	dl_txt_read_substr str = dl_txt_eat_string( &packctx->read_ctx );
+	if( str.str == 0x0 )
+		dl_txt_read_failed( dl_ctx, &packctx->read_ctx, DL_ERROR_MALFORMED_DATA, "expected a value of type 'string' or 'null'" );
+
+	size_t curr = dl_binary_writer_tell( packctx->writer );
+	dl_binary_writer_seek_end( packctx->writer );
+	size_t strpos = dl_binary_writer_tell( packctx->writer );
+	for( int i = 0; i < str.len; ++i )
+	{
+		if( str.str[i] == '\\' )
 		{
-			if( str.str[i] == '\\' )
+			++i;
+			switch( str.str[i] )
 			{
-				++i;
-				switch( str.str[i] )
-				{
-					case '\'':
-					case '\"':
-					case '\\':
-						dl_binary_writer_write_uint8( packctx->writer, (uint8_t)str.str[i] );
-						break;
-					case 'n': dl_binary_writer_write_uint8( packctx->writer, '\n' ); break;
-					case 'r': dl_binary_writer_write_uint8( packctx->writer, '\r' ); break;
-					case 't': dl_binary_writer_write_uint8( packctx->writer, '\t' ); break;
-					case 'b': dl_binary_writer_write_uint8( packctx->writer, '\b' ); break;
-					case 'f': dl_binary_writer_write_uint8( packctx->writer, '\f' ); break;
-						break;
-					default:
-						DL_ASSERT( false && "unhandled escape!" );
-				}
+				case '\'':
+				case '\"':
+				case '\\':
+					dl_binary_writer_write_uint8( packctx->writer, (uint8_t)str.str[i] );
+					break;
+				case 'n': dl_binary_writer_write_uint8( packctx->writer, '\n' ); break;
+				case 'r': dl_binary_writer_write_uint8( packctx->writer, '\r' ); break;
+				case 't': dl_binary_writer_write_uint8( packctx->writer, '\t' ); break;
+				case 'b': dl_binary_writer_write_uint8( packctx->writer, '\b' ); break;
+				case 'f': dl_binary_writer_write_uint8( packctx->writer, '\f' ); break;
+					break;
+				default:
+					DL_ASSERT( false && "unhandled escape!" );
 			}
-			else
-				dl_binary_writer_write_uint8( packctx->writer, (uint8_t)str.str[i] );
 		}
-		dl_binary_writer_write_uint8( packctx->writer, '\0' );
-		dl_binary_writer_seek_set( packctx->writer, curr );
-		dl_binary_writer_write( packctx->writer, &strpos, sizeof(size_t) );
+		else
+			dl_binary_writer_write_uint8( packctx->writer, (uint8_t)str.str[i] );
 	}
+	dl_binary_writer_write_uint8( packctx->writer, '\0' );
+	dl_binary_writer_seek_set( packctx->writer, curr );
+	dl_binary_writer_write( packctx->writer, &strpos, sizeof(size_t) );
 }
 
 static void dl_txt_pack_eat_and_write_enum( dl_ctx_t dl_ctx, dl_txt_pack_ctx* packctx, const dl_enum_desc* edesc )
@@ -254,6 +261,24 @@ static void dl_txt_pack_eat_and_write_enum( dl_ctx_t dl_ctx, dl_txt_pack_ctx* pa
 
 	dl_binary_writer_write_uint32( packctx->writer, enum_value );
 	packctx->read_ctx.iter = ename.str + ename.len + 1;
+}
+
+static void dl_txt_pack_eat_and_write_ptr( dl_ctx_t dl_ctx, dl_txt_pack_ctx* packctx, const dl_type_desc* type, size_t patch_pos )
+{
+	if( dl_txt_pack_eat_and_write_null(packctx) )
+		return;
+
+	dl_txt_read_substr ptr = dl_txt_eat_string( &packctx->read_ctx );
+	if( ptr.str == 0x0 )
+		dl_txt_read_failed( dl_ctx, &packctx->read_ctx, DL_ERROR_TXT_INVALID_MEMBER_TYPE, "expected string" );
+
+	if( packctx->subdata_count == DL_ARRAY_LENGTH( packctx->subdata ) )
+		dl_txt_read_failed( dl_ctx, &packctx->read_ctx, DL_ERROR_MALFORMED_DATA, "to many pointers! ( better error here! )" );
+
+	packctx->subdata[packctx->subdata_count].name = ptr;
+	packctx->subdata[packctx->subdata_count].type = type;
+	packctx->subdata[packctx->subdata_count].patch_pos = patch_pos;
+	++packctx->subdata_count;
 }
 
 static void dl_txt_pack_eat_and_write_struct( dl_ctx_t dl_ctx, dl_txt_pack_ctx* packctx, const dl_type_desc* type );
@@ -374,7 +399,14 @@ static void dl_txt_pack_eat_and_write_array( dl_ctx_t dl_ctx, dl_txt_pack_ctx* p
 		break;
 		case DL_TYPE_STORAGE_PTR:
 		{
-			DL_ASSERT( false );
+			const dl_type_desc* type = dl_internal_find_type( dl_ctx, member->type_id );
+			size_t array_pos = dl_binary_writer_tell( packctx->writer );
+			for( uint32_t i = 0; i < array_length - 1; ++i )
+			{
+				dl_txt_pack_eat_and_write_ptr( dl_ctx, packctx, type, array_pos + i * sizeof(void*) );
+				dl_txt_eat_char( dl_ctx, &packctx->read_ctx, ',' );
+			}
+			dl_txt_pack_eat_and_write_ptr( dl_ctx, packctx, type, array_pos + ( array_length - 1 ) * sizeof(void*) );
 		}
 		break;
 		case DL_TYPE_STORAGE_STRUCT:
@@ -571,36 +603,8 @@ static void dl_txt_pack_member( dl_ctx_t dl_ctx, dl_txt_pack_ctx* packctx, size_
 				case DL_TYPE_STORAGE_FP32:   dl_txt_pack_eat_and_write_fp32( dl_ctx, packctx );   break;
 				case DL_TYPE_STORAGE_FP64:   dl_txt_pack_eat_and_write_fp64( dl_ctx, packctx );   break;
 				case DL_TYPE_STORAGE_STR:    dl_txt_pack_eat_and_write_string( dl_ctx, packctx ); break;
-				case DL_TYPE_STORAGE_PTR:
-				{
-					dl_txt_eat_white( &packctx->read_ctx );
-					if( strncmp( packctx->read_ctx.iter, "null", 4 ) == 0 )
-					{
-						dl_binary_writer_write_ptr( packctx->writer, (uintptr_t)-1 );
-						packctx->read_ctx.iter += 4;
-					}
-					else
-					{
-						dl_txt_read_substr ptr = dl_txt_eat_string( &packctx->read_ctx );
-						if( ptr.str == 0x0 )
-							dl_txt_read_failed( dl_ctx, &packctx->read_ctx, DL_ERROR_TXT_INVALID_MEMBER_TYPE, "expected string" );
-
-						if( packctx->subdata_count == DL_ARRAY_LENGTH( packctx->subdata ) )
-							dl_txt_read_failed( dl_ctx, &packctx->read_ctx, DL_ERROR_MALFORMED_DATA, "to many pointers! ( better error here! )" );
-
-						packctx->subdata[packctx->subdata_count].name = ptr;
-						packctx->subdata[packctx->subdata_count].type = dl_internal_find_type( dl_ctx, member->type_id );
-						packctx->subdata[packctx->subdata_count].patch_pos = member_pos;
-						++packctx->subdata_count;
-					}
-				}
-				break;
-				case DL_TYPE_STORAGE_STRUCT:
-				{
-					const dl_type_desc* sub_type = dl_internal_find_type( dl_ctx, member->type_id );
-					dl_txt_pack_eat_and_write_struct( dl_ctx, packctx, sub_type );
-				}
-				break;
+				case DL_TYPE_STORAGE_PTR:    dl_txt_pack_eat_and_write_ptr( dl_ctx, packctx, dl_internal_find_type( dl_ctx, member->type_id ), member_pos ); break;
+				case DL_TYPE_STORAGE_STRUCT: dl_txt_pack_eat_and_write_struct( dl_ctx, packctx, dl_internal_find_type( dl_ctx, member->type_id ) ); break;
 				case DL_TYPE_STORAGE_ENUM:
 				{
 					dl_txt_eat_white( &packctx->read_ctx );
@@ -685,15 +689,37 @@ static void dl_txt_pack_member( dl_ctx_t dl_ctx, dl_txt_pack_ctx* packctx, size_
 		default:
 			DL_ASSERT(false);
 	}
+}
 
-	dl_txt_eat_white( &packctx->read_ctx );
-	switch( *packctx->read_ctx.iter )
+static void dl_txt_pack_eat_and_write_array_struct( dl_ctx_t dl_ctx, dl_txt_pack_ctx* packctx, const dl_type_desc* type )
+{
+	dl_txt_eat_char( dl_ctx, &packctx->read_ctx, '[' );
+
+	// ... reserve space for the type ...
+	size_t instance_pos = dl_binary_writer_tell( packctx->writer ); // duplicated in dl_txt_pack_eat_and_write_struct() =/
+	dl_binary_writer_reserve( packctx->writer, type->size[DL_PTR_SIZE_HOST] );
+
+	// ... pack all members in order ...
+	for( uint32_t member_index = 0; member_index < type->member_count; ++member_index )
 	{
-		case ',': ++packctx->read_ctx.iter; break;
-		case '}': break;
-		default:
-			dl_txt_read_failed( dl_ctx, &packctx->read_ctx, DL_ERROR_MALFORMED_DATA, "expected , or }" );
+		dl_txt_pack_member( dl_ctx, packctx, instance_pos, dl_get_type_member( dl_ctx, type, member_index ) );
+
+		dl_txt_eat_white( &packctx->read_ctx );
+
+		if( member_index < type->member_count - 1 )
+		{
+			if( *packctx->read_ctx.iter != ',' )
+				dl_txt_read_failed( dl_ctx, &packctx->read_ctx, DL_ERROR_TXT_MISSING_MEMBER,
+									"type '%s' was specified as array, only %u of %u members set!",
+									dl_internal_type_name( dl_ctx, type ),
+									member_index + 1,
+									type->member_count );
+			else
+				dl_txt_eat_char( dl_ctx, &packctx->read_ctx, ',' );
+		}
 	}
+
+	dl_txt_eat_char( dl_ctx, &packctx->read_ctx, ']' );
 }
 
 static void dl_txt_pack_eat_and_write_struct( dl_ctx_t dl_ctx, dl_txt_pack_ctx* packctx, const dl_type_desc* type )
@@ -701,6 +727,14 @@ static void dl_txt_pack_eat_and_write_struct( dl_ctx_t dl_ctx, dl_txt_pack_ctx* 
 	uint64_t members_set = 0;
 	bool     union_member_set = false;
 	uint32_t member_name_hash = 0;
+
+	dl_txt_eat_white( &packctx->read_ctx );
+
+	if( *packctx->read_ctx.iter == '[' )
+	{
+		dl_txt_pack_eat_and_write_array_struct( dl_ctx, packctx, type );
+		return;
+	}
 
 	// ... find open {
 	dl_txt_eat_char( dl_ctx, &packctx->read_ctx, '{' );
@@ -764,6 +798,15 @@ static void dl_txt_pack_eat_and_write_struct( dl_ctx_t dl_ctx, dl_txt_pack_ctx* 
 
 		// ... read member ...
 		dl_txt_pack_member( dl_ctx, packctx, instance_pos, dl_get_type_member( dl_ctx, type, member_id ) );
+
+		dl_txt_eat_white( &packctx->read_ctx );
+		switch( *packctx->read_ctx.iter )
+		{
+			case ',': ++packctx->read_ctx.iter; break;
+			case '}': break;
+			default:
+				dl_txt_read_failed( dl_ctx, &packctx->read_ctx, DL_ERROR_MALFORMED_DATA, "expected , or }" );
+		}
 	}
 
 	// ... find close }
@@ -909,7 +952,7 @@ static dl_error_t dl_txt_pack_finalize_subdata( dl_ctx_t dl_ctx, dl_txt_pack_ctx
 
 static const dl_type_desc* dl_txt_pack_inner( dl_ctx_t dl_ctx, dl_txt_pack_ctx* packctx )
 {
-	const dl_type_desc* root_type = 0x0;
+//	const dl_type_desc* root_type = 0x0;
 #if defined(_MSC_VER )
 #pragma warning(push)
 #pragma warning(disable:4611)
@@ -930,7 +973,7 @@ static const dl_type_desc* dl_txt_pack_inner( dl_ctx_t dl_ctx, dl_txt_pack_ctx* 
 
 		char type_name[1024] = {0}; // TODO: make a dl_internal_find_type_by_name() that take string name.
 		strncpy( type_name, root_type_name.str, (size_t)root_type_name.len );
-		root_type = dl_internal_find_type_by_name( dl_ctx, type_name );
+		const dl_type_desc* root_type = dl_internal_find_type_by_name( dl_ctx, type_name );
 		if( root_type == 0x0 )
 			dl_txt_read_failed( dl_ctx, &packctx->read_ctx, DL_ERROR_TYPE_NOT_FOUND, "no type named \"%s\" loaded", type_name );
 
@@ -939,8 +982,9 @@ static const dl_type_desc* dl_txt_pack_inner( dl_ctx_t dl_ctx, dl_txt_pack_ctx* 
 		dl_txt_eat_char( dl_ctx, &packctx->read_ctx, '}' );
 
 		dl_txt_pack_finalize_subdata( dl_ctx, packctx );
+		return root_type;
 	}
-	return root_type;
+	return 0x0;
 }
 
 dl_error_t dl_txt_pack( dl_ctx_t dl_ctx, const char* txt_instance, unsigned char* out_buffer, size_t out_buffer_size, size_t* produced_bytes )
