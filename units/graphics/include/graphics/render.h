@@ -1,9 +1,6 @@
 #pragma once
 
-/* external types */
-#include <units/graphics/types/mesh.h>
-#include <units/graphics/types/shader.h>
-#include <units/graphics/types/material.h>
+#include <stdint.h>
 
 /******************************************************************************\
 *
@@ -12,6 +9,9 @@
 \******************************************************************************/
 
 struct allocator_t;
+struct mesh_data_t;
+struct shader_data_t;
+struct material_data_t;
 
 /******************************************************************************\
 *
@@ -34,6 +34,7 @@ typedef enum render_backend_t
 {
 	RENDER_BACKEND_NULL = 0,
 	RENDER_BACKEND_DX12,
+	RENDER_BACKEND_VK,
 } render_backend_t;
 
 /******************************************************************************\

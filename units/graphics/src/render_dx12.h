@@ -11,6 +11,11 @@
 #include <d3d12.h>
 #include <dxgi1_4.h>
 
+/* external types */
+#include <units/graphics/types/mesh.h>
+#include <units/graphics/types/shader.h>
+#include <units/graphics/types/material.h>
+
 #define RENDER_MULTI_BUFFERING 2
 
 struct ring_dx12_buffer_t
