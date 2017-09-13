@@ -95,14 +95,19 @@ typedef struct render_attachment_t
 	// TODO: load/store info
 } render_attachment_t;
 
+typedef enum render_command_type_t
+{
+	RENDER_COMMAND_DRAW = 0,
+} render_command_type_t;
+
 typedef struct render_command_t
 {
-	uint32_t type;
+	render_command_type_t type;
 	union
 	{
 		struct
 		{
-			char dummy;
+			char dummy; // currently draws everything...
 		} draw;
 	};
 } render_command_t;

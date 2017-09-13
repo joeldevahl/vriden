@@ -1,5 +1,3 @@
-#if defined(FAMILY_WINDOWS)
-
 #include "render_dx12.h"
 
 #include <foundation/hash.h>
@@ -941,10 +939,8 @@ struct render_dx12_pass_context_t
 	ID3D12GraphicsCommandList* command_list;
 };
 
-static void render_dx12_draw_pass(render_dx12_t* render, render_dx12_pass_context_t& ctx, render_dx12_view_t* view, render_dx12_script_t* script, size_t ip)
+static void render_dx12_do_draw(render_dx12_t* render, render_dx12_pass_context_t& ctx, render_dx12_pass_t* pass, render_dx12_view_t* view, render_dx12_script_t* script, size_t ip)
 {
-	render_dx12_pass_t* pass = &script->passes[ip];
-
 	array_t<D3D12_RESOURCE_BARRIER> barriers(render->allocator, 8); // TODO: persist between frames or temp alloc
 	array_t<render_dx12_sort_object_t> sort_objects(render->allocator, ctx.num_instances); // TODO: persist between frames or temp alloc
 
@@ -1076,6 +1072,23 @@ static void render_dx12_draw_pass(render_dx12_t* render, render_dx12_pass_contex
 	}
 }
 
+static void render_dx12_do_pass(render_dx12_t* render, render_dx12_pass_context_t& ctx, render_dx12_view_t* view, render_dx12_script_t* script, size_t ip)
+{
+	render_dx12_pass_t* pass = &script->passes[ip];
+
+	for (size_t i = 0; i < pass->num_commands; ++i)
+	{
+		switch (pass->commands[i].type)
+		{
+			case RENDER_COMMAND_DRAW:
+				render_dx12_do_draw(render, ctx, pass, view, script, ip);
+				break;
+			default:
+				BREAKPOINT();
+		}
+	}
+}
+
 void render_dx12_kick_render(render_dx12_t* render, render_view_id_t view_id, render_script_id_t script_id)
 {
 	render_dx12_view_t* view = render->views.handle_to_pointer(view_id);
@@ -1169,7 +1182,7 @@ void render_dx12_kick_render(render_dx12_t* render, render_view_id_t view_id, re
 
 	for (size_t p = 0; p < script->num_passes; ++p)
 	{
-		render_dx12_draw_pass(render, ctx, view, script, p);
+		render_dx12_do_pass(render, ctx, view, script, p);
 	}
 
 	barriers.clear();
@@ -1233,5 +1246,3 @@ void render_dx12_kick_upload(render_dx12_t* render)
 	frame_next.command_list->Reset(frame_next.allocator, nullptr);
 	render->copy_upload_ring.free_to_mark(frame_next.upload_fence_mark);
 }
-
-#endif

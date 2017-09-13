@@ -124,7 +124,7 @@ int application_main(application_t* application)
 	};
 
 	render_command_t commands[1];
-	commands[0].type = 0; // TODO
+	commands[0].type = RENDER_COMMAND_DRAW;
 	commands[0].draw.dummy = 0; // TODO
 
 	render_pass_t passes[] =
