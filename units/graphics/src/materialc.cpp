@@ -102,10 +102,17 @@ int main(int argc, const char** argv)
 
 	for (size_t i = 0; i < num_properties; ++i)
 	{
-		// TODO: more types!
 		properties[i].name_hash = hash_string(material_intermediate->properties[i].name);
-		properties[i].value.data = (uint8_t*)material_intermediate->properties[i].value.data;
-		properties[i].value.count = material_intermediate->properties[i].value.count * sizeof(float);
+		if (material_intermediate->properties[i].path != nullptr)
+		{
+			properties[i].value.data = nullptr;
+			properties[i].value.count = 0;
+		}
+		else
+		{
+			properties[i].value.data = (uint8_t*)material_intermediate->properties[i].value.data;
+			properties[i].value.count = material_intermediate->properties[i].value.count * sizeof(float);
+		}
 	}
 
 	material_data_t material_data =

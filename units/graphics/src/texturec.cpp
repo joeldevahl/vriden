@@ -8,6 +8,7 @@
 #include <dl/dl_util.h>
 
 #include <getopt/getopt.h>
+#include <stb_image.h>
 
 #include <units/graphics/types/texture.h>
 
@@ -73,6 +74,8 @@ int main(int argc, const char** argv)
 	DL_CREATE_PARAMS_SET_DEFAULT(dl_create_params);
 	dl_error_t err = dl_context_create(&dl_ctx, &dl_create_params);
 	dl_context_load_type_library(dl_ctx, texture_typelib, ARRAY_LENGTH(texture_typelib));
+
+
 
 	texture_data_t texture_data;
 

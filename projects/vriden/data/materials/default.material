@@ -1,8 +1,10 @@
 // dep source projects/vriden/data/shaders/default.shader
+// dep source projects/vriden/data/textures/purge.texture
 {
 	"material_intermediate_t": {
 		"properties" : [
-			{ "name" : "color", "value" : [1.0, 0.0, 1.0, 1.0] }
+			{ "name" : "color", "value" : [1.0, 0.0, 1.0, 1.0] },
+			{ "name" : "texture", "path" : "projects/vriden/data/textures/purge.texture" }
 		],
 		"shader_name": "projects/vriden/data/shaders/default.shader"
 	}

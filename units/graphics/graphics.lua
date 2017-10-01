@@ -5,6 +5,7 @@ Unit:Using("foundation")
 Unit:Using("getopt")
 Unit:Using("dl")
 Unit:Using("assimp")
+Unit:Using("stb_image")
 
 function Unit.AddTools(self)
 
@@ -42,7 +43,7 @@ function Unit.AddTools(self)
 	AddCompiler("materialc", "material")
 	AddCompiler("meshc", "mesh")
 	AddCompiler("shaderc", "shader")
-	AddCompiler("texturec", "texture")
+	AddCompiler("texturec", "texture") -- TODO: should translate .png -> .texture
 
 	AddTool(function (settings)
 		settings.vertex_layoutc = {}

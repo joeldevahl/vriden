@@ -783,20 +783,22 @@ render_result_t render_dx12_material_create(render_dx12_t* render, const materia
 				break;
 			}
 		}
-		ASSERT(idx != SIZE_MAX);
-
-		// Make sure we have the constant buffer to patch
-		ASSERT(shader->properties[idx].pack_size == material_data->properties[i].value.count);
-		const shader_frequency_t icb = shader->properties[i].frequency;
-		ASSERT(icb >= SHADER_FREQUENCY_PER_MATERIAL);
-		if (material->constant_buffers[icb] == nullptr)
+		
+		if(idx != SIZE_MAX)
 		{
-			material->constant_buffer_ids[icb] = shader->constant_buffers[icb].pool.alloc_handle();
-			material->constant_buffers[icb] = ALLOCATOR_ALLOC_ARRAY(render->allocator, shader->constant_buffers[icb].stride, uint8_t);
-			memcpy(material->constant_buffers[icb], shader->constant_buffers[icb].default_data, shader->constant_buffers[icb].stride);
-		}
+			// Make sure we have the constant buffer to patch
+			ASSERT(shader->properties[idx].pack_size == material_data->properties[i].value.count);
+			const shader_frequency_t icb = shader->properties[i].frequency;
+			ASSERT(icb >= SHADER_FREQUENCY_PER_MATERIAL);
+			if (material->constant_buffers[icb] == nullptr)
+			{
+				material->constant_buffer_ids[icb] = shader->constant_buffers[icb].pool.alloc_handle();
+				material->constant_buffers[icb] = ALLOCATOR_ALLOC_ARRAY(render->allocator, shader->constant_buffers[icb].stride, uint8_t);
+				memcpy(material->constant_buffers[icb], shader->constant_buffers[icb].default_data, shader->constant_buffers[icb].stride);
+			}
 
-		memcpy(material->constant_buffers[icb] + shader->properties[idx].pack_offset, material_data->properties[i].value.data, shader->properties[idx].pack_size);
+			memcpy(material->constant_buffers[icb] + shader->properties[idx].pack_offset, material_data->properties[i].value.data, shader->properties[idx].pack_size);
+		}
 	}
 
 	material->upload_fence = 0;

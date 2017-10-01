@@ -32,6 +32,11 @@ static bool material_create(void* context, allocator_t* allocator, void* creatio
 			&consumed);
 	ASSERT(err == DL_ERROR_OK);
 
+	for (size_t ip = 0; ip < material_data->properties.count; ++ip)
+	{
+		// resolve all property resources
+	}
+
 	resource_handle_t shader_handle;
 	resource_cache_result_t resource_res = resource_cache_get_by_hash(resource_context->resource_cache, material_data->shader_name_hash, &shader_handle);
 	ASSERT(resource_res == RESOURCE_CACHE_RESULT_OK);
