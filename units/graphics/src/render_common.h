@@ -17,7 +17,7 @@ render_result_t render_null_view_create       (render_null_t* render, const rend
 void            render_null_view_destroy      (render_null_t* render, render_view_id_t view_id);
 render_result_t render_null_script_create     (render_null_t* render, const render_script_create_info_t* create_info, render_script_id_t* out_script_ud);
 void            render_null_script_destroy    (render_null_t* render, render_script_id_t script_id);
-render_result_t render_null_texture_create    (render_null_t* render, const render_texture_create_info_t* create_info, render_texture_id_t* out_texture_id);
+render_result_t render_null_texture_create    (render_null_t* render, const texture_data_t* texture_data, render_texture_id_t* out_texture_id);
 void            render_null_texture_destroy   (render_null_t* render, render_texture_id_t texture_id);
 render_result_t render_null_shader_create     (render_null_t* render, const shader_data_t* shader_data, render_shader_id_t* out_shader_id);
 void            render_null_shader_destroy    (render_null_t* render, render_shader_id_t shader_id);
@@ -38,7 +38,7 @@ render_result_t render_dx12_view_create       (render_dx12_t* render, const rend
 void            render_dx12_view_destroy      (render_dx12_t* render, render_view_id_t view_id);
 render_result_t render_dx12_script_create     (render_dx12_t* render, const render_script_create_info_t* create_info, render_script_id_t* out_script_ud);
 void            render_dx12_script_destroy    (render_dx12_t* render, render_script_id_t script_id);
-render_result_t render_dx12_texture_create    (render_dx12_t* render, const render_texture_create_info_t* create_info, render_texture_id_t* out_texture_id);
+render_result_t render_dx12_texture_create    (render_dx12_t* render, const texture_data_t* texture_data, render_texture_id_t* out_texture_id);
 void            render_dx12_texture_destroy   (render_dx12_t* render, render_texture_id_t texture_id);
 render_result_t render_dx12_shader_create     (render_dx12_t* render, const shader_data_t* shader_data, render_shader_id_t* out_shader_id);
 void            render_dx12_shader_destroy    (render_dx12_t* render, render_shader_id_t shader_id);

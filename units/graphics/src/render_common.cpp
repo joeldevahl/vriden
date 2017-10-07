@@ -76,9 +76,9 @@ void render_script_destroy(render_t* render, render_script_id_t script_id)
 	RENDER_CALL_FUNC(render, script_destroy, render->backend, script_id)
 }
 
-render_result_t render_texture_create(render_t* render, const render_texture_create_info_t* create_info, render_texture_id_t* out_texture_id)
+render_result_t render_texture_create(render_t* render, const texture_data_t* texture_data, render_texture_id_t* out_texture_id)
 {
-	RENDER_CALL_FUNC(render, texture_create, render->backend, create_info, out_texture_id)
+	RENDER_CALL_FUNC(render, texture_create, render->backend, texture_data, out_texture_id)
 	return (render_result_t)-1;
 }
 

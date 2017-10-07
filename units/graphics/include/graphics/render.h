@@ -11,6 +11,7 @@
 struct allocator_t;
 struct mesh_data_t;
 struct shader_data_t;
+struct texture_data_t;
 struct material_data_t;
 
 /******************************************************************************\
@@ -131,14 +132,6 @@ typedef struct render_script_create_info_t
 	render_pass_t* passes;
 } render_script_create_info_t;
 
-typedef struct render_texture_create_info_t
-{
-	uint16_t width;
-	uint16_t height;
-	const void* data; // TODO: better initialization
-
-} render_texture_create_info_t;
-
 typedef struct render_instance_data_t
 {
 	float transform[16];
@@ -172,7 +165,7 @@ render_result_t render_script_create(render_t* render, const render_script_creat
 
 void render_script_destroy(render_t* render, render_script_id_t script_id);
 
-render_result_t render_texture_create(render_t* render, const render_texture_create_info_t* create_info, render_texture_id_t* out_texture_id);
+render_result_t render_texture_create(render_t* render, const texture_data_t* texture_data, render_texture_id_t* out_texture_id);
 
 void render_texture_destroy(render_t* render, render_texture_id_t texture_id);
 

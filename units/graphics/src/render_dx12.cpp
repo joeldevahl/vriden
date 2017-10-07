@@ -525,20 +525,20 @@ void render_dx12_script_destroy(render_dx12_t* render, render_script_id_t script
 	render->scripts.free_handle(script_id);
 }
 
-render_result_t render_dx12_texture_create(render_dx12_t* render, const render_texture_create_info_t* create_info, render_texture_id_t* out_texture_id)
+render_result_t render_dx12_texture_create(render_dx12_t* render, const texture_data_t* texture_data, render_texture_id_t* out_texture_id)
 {
 	ASSERT(render->textures.num_free() != 0);
 
 	render_dx12_texture_t* texture = render->textures.alloc();
-	texture->width = create_info->width;
-	texture->height = create_info->height;
+	texture->width = texture_data->width;
+	texture->height = texture_data->height;
 
 	D3D12_RESOURCE_DESC desc =
 	{
 		D3D12_RESOURCE_DIMENSION_TEXTURE2D,
 		0,
-		create_info->width,
-		create_info->height,
+		texture_data->width,
+		texture_data->height,
 		1,
 		1,
 		DXGI_FORMAT_R8G8B8A8_UNORM, // TODO
@@ -560,16 +560,17 @@ render_result_t render_dx12_texture_create(render_dx12_t* render, const render_t
 		IID_PPV_ARGS(&texture->resource));
 	ASSERT(SUCCEEDED(hr), "failed to create committed resource");
 
-	size_t row_pitch = create_info->width * 4 * sizeof(uint8_t); // TODO
+	size_t row_pitch = texture_data->width * 4 * sizeof(uint8_t); // TODO
 	ASSERT((row_pitch & (D3D12_TEXTURE_DATA_PITCH_ALIGNMENT - 1)) == 0);
-	size_t data_size = row_pitch * create_info->height; // TODO
-	size_t upload_offset = render->copy_upload_ring.get(data_size);
+	size_t data_size = row_pitch * texture_data->height; // TODO
+	ASSERT(data_size = texture_data->data.count);
+	size_t upload_offset = render->copy_upload_ring.get(data_size, D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT);
 
 	D3D12_SUBRESOURCE_FOOTPRINT pitched_desc =
 	{
 		desc.Format,
-		create_info->width,
-		create_info->height,
+		texture_data->width,
+		texture_data->height,
 		1,
 		(UINT)row_pitch,
 	};
@@ -580,7 +581,7 @@ render_result_t render_dx12_texture_create(render_dx12_t* render, const render_t
 		pitched_desc,
 	};
 
-	memcpy(render->copy_upload_buffer + upload_offset, create_info->data, data_size); // TODO: handle pitch
+	memcpy(render->copy_upload_buffer + upload_offset, texture_data->data.data, data_size); // TODO: handle pitch
 
 	render_dx12_t::copy_frame_data_t& frame = render_dx12_curr_copy_frame(render);
 

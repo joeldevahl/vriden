@@ -31,6 +31,7 @@ struct dummy_job_params_t
 
 void mesh_register_creator(resource_context_t* resource_context);
 void shader_register_creator(resource_context_t* resource_context);
+void texture_register_creator(resource_context_t* resource_context);
 void material_register_creator(resource_context_t* resource_context);
 
 int application_main(application_t* application)
@@ -145,6 +146,7 @@ int application_main(application_t* application)
 
 	mesh_register_creator(&resource_context);
 	shader_register_creator(&resource_context);
+	texture_register_creator(&resource_context);
 	material_register_creator(&resource_context);
 
 	char* precache_text = nullptr;

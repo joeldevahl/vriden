@@ -14,6 +14,7 @@ function Unit.BuildTarget(self)
 		"data/vertex_layouts/*.vl",
 		"data/meshes/*.mesh",
 		"data/shaders/*.shader",
+		"data/textures/*.texture",
 		"data/materials/*.material",
 	}
 	for _,d in ipairs(data) do

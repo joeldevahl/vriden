@@ -3,6 +3,8 @@
 	"types" : {
 		"texture_data_t" : {
 			"members" : [
+				{ "name" : "width", "type" : "uint32" },
+				{ "name" : "height", "type" : "uint32" },
 				{ "name" : "data", "type" : "uint8[]" }
 			]
 		}

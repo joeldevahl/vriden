@@ -41,7 +41,7 @@ void render_null_script_destroy(render_null_t* /*render*/, render_script_id_t /*
 {
 }
 
-render_result_t render_null_texture_create(render_null_t* /*render*/, const render_texture_create_info_t* /*create_info*/, render_texture_id_t* /*out_texture_id*/)
+render_result_t render_null_texture_create(render_null_t* /*render*/, const texture_data_t* /*texture_data*/, render_texture_id_t* /*out_texture_id*/)
 {
 	return RENDER_RESULT_OK;
 }

@@ -8,6 +8,8 @@
 #include <dl/dl_util.h>
 
 #include <getopt/getopt.h>
+  
+#define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
 #include <units/graphics/types/texture.h>
@@ -23,7 +25,7 @@ static const unsigned char texture_typelib[] =
 void print_help(getopt_context_t* ctx)
 {
 	char buffer[2048];
-	printf("usage: meshc [options] file\n\n");
+	printf("usage: texturec [options] file\n\n");
 	printf("%s", getopt_create_help_string(ctx, buffer, sizeof(buffer)));
 }
 
@@ -76,8 +78,17 @@ int main(int argc, const char** argv)
 	dl_context_load_type_library(dl_ctx, texture_typelib, ARRAY_LENGTH(texture_typelib));
 
 
+	int x, y, n;
+	unsigned char* data = stbi_load(infilename, &x, &y, &n, 0);
+	// TODO: make sure data is in GPU ready format (pitch/swizzle)
 
 	texture_data_t texture_data;
+	texture_data.width = x;
+	texture_data.height = y;
+	texture_data.data.count = x * y * n;
+	texture_data.data.data = data;
+
+	stbi_image_free(data);
 
 	err = dl_util_store_to_file(
 			dl_ctx,
