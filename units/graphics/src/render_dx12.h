@@ -13,6 +13,7 @@
 
 /* external types */
 #include <units/graphics/types/mesh.h>
+#include <units/graphics/types/texture.h>
 #include <units/graphics/types/shader.h>
 #include <units/graphics/types/texture.h>
 #include <units/graphics/types/material.h>
@@ -42,9 +43,10 @@ struct ring_dx12_buffer_t
 		_size = size;
 	}
 
-	size_t get(size_t size, size_t alignment = 0)
+	size_t get(size_t size, size_t align = 1)
 	{
-		size += alignment; // TODO:
+		size = ALIGN_UP(size, align); // TODO: this wastes space
+
 		if (_get > _put) // case where ring segment is contiguous
 			if (_put - _get < size) // do size fit in range?
 				BREAKPOINT();
@@ -62,7 +64,7 @@ struct ring_dx12_buffer_t
 		if (_get > _size)
 			_get -= _size;
 		
-		return ALIGN_UP(res, alignment);
+		return ALIGN_UP(res, align);
 	}
 
 	size_t get_mark()

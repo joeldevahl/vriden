@@ -580,10 +580,9 @@ render_result_t render_dx12_texture_create(render_dx12_t* render, const texture_
 		IID_PPV_ARGS(&texture->resource));
 	ASSERT(SUCCEEDED(hr), "failed to create committed resource");
 
-	size_t row_pitch = texture_data->width * 4 * sizeof(uint8_t); // TODO
+	size_t row_pitch = texture_data->pitch;
 	ASSERT((row_pitch & (D3D12_TEXTURE_DATA_PITCH_ALIGNMENT - 1)) == 0);
-	size_t data_size = row_pitch * texture_data->height; // TODO
-	ASSERT(data_size = texture_data->data.count);
+	size_t data_size = texture_data->data.count;
 	size_t upload_offset = render->copy_upload_ring.get(data_size, D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT);
 
 	D3D12_SUBRESOURCE_FOOTPRINT pitched_desc =

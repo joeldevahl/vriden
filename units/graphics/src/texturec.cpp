@@ -11,6 +11,7 @@
   
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
+#include <string.h>
 
 #include <units/graphics/types/texture.h>
 
@@ -77,18 +78,24 @@ int main(int argc, const char** argv)
 	dl_error_t err = dl_context_create(&dl_ctx, &dl_create_params);
 	dl_context_load_type_library(dl_ctx, texture_typelib, ARRAY_LENGTH(texture_typelib));
 
-
-	int x, y, n;
-	unsigned char* data = stbi_load(infilename, &x, &y, &n, 0);
-	// TODO: make sure data is in GPU ready format (pitch/swizzle)
+	int width, height, num_channels;
+	unsigned char* texdata = (unsigned char*)stbi_load(infilename, &width, &height, &num_channels, 4);
+	uint32_t pitch = ALIGN_UP(width * 4, 256); // TODO: add pitch for dx12, this will differ per platform!
+	uint32_t size = height * pitch;
 
 	texture_data_t texture_data;
-	texture_data.width = x;
-	texture_data.height = y;
-	texture_data.data.count = x * y * n;
-	texture_data.data.data = data;
+	texture_data.width = width;
+	texture_data.height = height;
+	texture_data.pitch = pitch;
+	texture_data.data.count = size;
 
-	stbi_image_free(data);
+	unsigned char* dst = (unsigned char*)malloc(size);
+	texture_data.data.data = dst;
+
+	for (int r = 0; r < height; ++r)
+		memcpy(dst + r * pitch, texdata + r * width * 4, width * 4);
+
+	stbi_image_free(texdata);
 
 	err = dl_util_store_to_file(
 			dl_ctx,
@@ -100,6 +107,8 @@ int main(int argc, const char** argv)
 			&texture_data);
 	if(err != DL_ERROR_OK)
 		ERROR_AND_FAIL("failed to save compiled texture to file \"%s\"", outfilename);
+
+	free(dst);
 
 	return 0;
 }

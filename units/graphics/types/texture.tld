@@ -5,6 +5,7 @@
 			"members" : [
 				{ "name" : "width", "type" : "uint32" },
 				{ "name" : "height", "type" : "uint32" },
+				{ "name" : "pitch", "type" : "uint32" },
 				{ "name" : "data", "type" : "uint8[]" }
 			]
 		}
