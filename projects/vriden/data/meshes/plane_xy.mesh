@@ -1,5 +1,4 @@
 // dep source projects/vriden/data/vertex_layouts/pos3f.vl
-// dep source projects/vriden/data/meshes/plane_xy.obj
 {
 	"mesh_intermediate_t" : {
 		"source" : "projects/vriden/data/meshes/plane_xy.obj",

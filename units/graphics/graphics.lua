@@ -9,6 +9,27 @@ Unit:Using("stb_image")
 
 function Unit.AddTools(self)
 
+	local function AddCompilerNoDep(name, extension)
+		AddTool(function (settings)
+			settings[name] = {}
+			settings[name].exe = GetHostBinary(name)
+
+			settings.compile.mappings[extension] = function (settings, infile)
+				local outfile = PathJoin(target.outdir, infile)
+				local compiler = settings[name]
+				local exe = compiler.exe
+				local cmd = exe .. " -o " .. outfile .. " " .. infile
+
+				print(outfile)
+				AddJob(outfile, name .. " " .. infile, cmd)
+				AddDependency(outfile, exe)
+				AddDependency(outfile, infile)
+
+				return outfile
+			end
+		end)
+	end
+
 	local function AddCompiler(name, extension)
 		AddTool(function (settings)
 			settings[name] = {}
@@ -28,7 +49,7 @@ function Unit.AddTools(self)
 					local dep_type, file = string.match(line, "//%s*dep%s+(.+)%s+(.+)")
 					if dep_type and file then
 						if dep_type == "source" then
-							AddDependency(outfile, file)
+							AddDependency(outfile, PathJoin(target.outdir, file))
 						else
 							-- TODO: transform source to binary version
 						end
@@ -43,7 +64,7 @@ function Unit.AddTools(self)
 	AddCompiler("materialc", "material")
 	AddCompiler("meshc", "mesh")
 	AddCompiler("shaderc", "shader")
-	AddCompiler("texturec", "texture") -- TODO: should translate .png -> .texture
+	AddCompilerNoDep("texturec", "texture") -- TODO: should translate .png -> .texture
 
 	AddTool(function (settings)
 		settings.vertex_layoutc = {}
