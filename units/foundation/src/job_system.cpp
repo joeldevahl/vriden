@@ -180,6 +180,7 @@ job_system_t* job_system_create(const job_system_create_params_t* params)
 	system->cached_functions.create(system->alloc, params->max_cached_functions);
 
 	system->threads.create(system->alloc, params->num_threads);
+	system->threads.set_length(params->num_threads);
 	for(size_t i = 0; i < params->num_threads; ++i)
 	{
 		new (&system->threads[i]) job_context_t();
