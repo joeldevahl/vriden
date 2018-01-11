@@ -27,10 +27,7 @@ struct cobjpool_t
 
 	~cobjpool_t()
 	{
-		ALLOCATOR_FREE(_alloc, _handles);
-		ALLOCATOR_FREE(_alloc, _indices);
-		ALLOCATOR_FREE(_alloc, _data);
-		ALLOCATOR_FREE(_alloc, _allocated_handles);
+		destroy();
 	}
 
 	void create(allocator_t* alloc, size_t capacity)
@@ -47,6 +44,17 @@ struct cobjpool_t
 
 		for(size_t i = 0; i < capacity; ++i)
 			_handles[i] = static_cast<TH>(capacity - i - 1);
+	}
+
+	void destroy()
+	{
+		if (_alloc)
+		{
+			ALLOCATOR_FREE(_alloc, _handles);
+			ALLOCATOR_FREE(_alloc, _indices);
+			ALLOCATOR_FREE(_alloc, _data);
+			ALLOCATOR_FREE(_alloc, _allocated_handles);
+		}
 	}
 
 	bool full() const

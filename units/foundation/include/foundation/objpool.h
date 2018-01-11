@@ -21,11 +21,7 @@ struct objpool_t
 
 	~objpool_t()
 	{
-		if (_alloc)
-		{
-			ALLOCATOR_FREE(_alloc, _handles);
-			ALLOCATOR_FREE(_alloc, _data);
-		}
+		destroy();
 	}
 
 	void create(allocator_t* alloc, size_t capacity)
@@ -41,6 +37,15 @@ struct objpool_t
 
 		for(size_t i = 0; i < capacity; ++i)
 			_handles[i] = static_cast<TH>(capacity - i - 1);
+	}
+
+	void destroy()
+	{
+		if (_alloc)
+		{
+			ALLOCATOR_FREE(_alloc, _handles);
+			ALLOCATOR_FREE(_alloc, _data);
+		}
 	}
 
 	bool full() const

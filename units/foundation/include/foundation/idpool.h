@@ -20,20 +20,26 @@ struct idpool_t
 
 	~idpool_t()
 	{
-		ALLOCATOR_FREE(_alloc, _handles);
+		destroy();
 	}
 
 	void create(allocator_t* alloc, size_t capacity)
 	{
 		ASSERT(_handles == NULL, "idpool was already created");
 
-		_alloc= alloc;
+		_alloc = alloc;
 		_capacity = capacity;
 		_num_free = capacity;
 		_handles = (TH*)ALLOCATOR_ALLOC(alloc, capacity*sizeof(TH), ALIGNOF(TH));
 
 		for(size_t i = 0; i < capacity; ++i)
 			_handles[i] = static_cast<TH>(capacity - i - 1);
+	}
+
+	void destroy()
+	{
+		if(_alloc)
+			ALLOCATOR_FREE(_alloc, _handles);
 	}
 
 	size_t capacity() const

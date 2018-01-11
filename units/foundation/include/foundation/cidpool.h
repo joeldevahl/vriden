@@ -21,8 +21,7 @@ struct cidpool_t
 
 	~cidpool_t()
 	{
-		ALLOCATOR_FREE(_allocator, _handles);
-		ALLOCATOR_FREE(_allocator, _indices);
+		destroy();
 	}
 
 	void create(allocator_t* allocator, size_t capacity)
@@ -36,6 +35,15 @@ struct cidpool_t
 
 		for(size_t i = 0; i < capacity; ++i)
 			_handles[i] = static_cast<TH>(capacity - i - 1);
+	}
+	
+	void destroy()
+	{
+		if (_allocator)
+		{
+			ALLOCATOR_FREE(_allocator, _handles);
+			ALLOCATOR_FREE(_allocator, _indices);
+		}
 	}
 
 	size_t capacity() const
