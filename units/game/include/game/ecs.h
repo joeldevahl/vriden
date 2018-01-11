@@ -54,10 +54,26 @@ struct component_type_id_t
 struct ecs_create_info_t
 {
 	allocator_t* allocator;
+	uint32_t max_entities;
+	uint32_t max_component_types;
 };
 
 struct component_type_create_info_t
 {
+	uint32_t max_components;
+	uint32_t component_size;
+};
+
+struct component_data_t
+{
+	component_type_id_t type;
+	const void* data;
+};
+
+struct entity_create_info_t
+{
+	uint32_t num_components;
+	const component_data_t* component_datas;
 };
 
 /******************************************************************************\
@@ -70,4 +86,8 @@ ecs_result_t ecs_create(const ecs_create_info_t* create_info, ecs_t** out_ecs);
 
 void ecs_destroy(ecs_t* ecs);
 
-ecs_result_t ecs_register_component_type(ecs_t* ecs, component_type_create_info_t* create_info, component_type_id_t* out_id);
+ecs_result_t ecs_register_component_type(ecs_t* ecs, const component_type_create_info_t* create_info, component_type_id_t* out_id);
+
+ecs_result_t ecs_entity_create(ecs_t* ecs, const entity_create_info_t* create_info, entity_id_t* out_id);
+
+void ecs_entity_destroy(ecs_t* ecs, entity_id_t id);
