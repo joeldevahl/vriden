@@ -1,6 +1,8 @@
 Unit:Using("application")
 Unit:Using("game")
 
+Unit:Using("glm")
+
 function Unit.Init(self)
 	self.executable = true
 	self.targetname = "ecstest"
