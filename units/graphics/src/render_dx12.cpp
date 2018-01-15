@@ -64,7 +64,7 @@ static render_dx12_t::copy_frame_data_t& render_dx12_curr_copy_frame(render_dx12
 static void render_dx12_push_pending_upload(render_dx12_t* render, ID3D12Resource* resource, D3D12_RESOURCE_STATES src_state, D3D12_RESOURCE_STATES dst_state)
 {
 	if (render->pending_uploads.full())
-		render->pending_uploads.grow();
+		render->pending_uploads.grow(render->allocator);
 
 	render_dx12_upload_t upload =
 	{
@@ -82,14 +82,14 @@ render_result_t render_dx12_create(const render_create_info_t* create_info, rend
 	render->allocator = create_info->allocator;
 	render->backend = RENDER_BACKEND_DX12;
 
-	render->views.create(create_info->allocator, 1);
-	render->scripts.create(create_info->allocator, 1);
-	render->textures.create(create_info->allocator, create_info->max_textures);
-	render->shaders.create(create_info->allocator, create_info->max_shaders);
-	render->materials.create(create_info->allocator, create_info->max_materials);
-	render->meshes.create(create_info->allocator, create_info->max_meshes);
-	render->instances.create(create_info->allocator, create_info->max_instances);
-	render->pending_uploads.create(create_info->allocator, 32);
+	render->views.create(render->allocator, 1);
+	render->scripts.create(render->allocator, 1);
+	render->textures.create(render->allocator, create_info->max_textures);
+	render->shaders.create(render->allocator, create_info->max_shaders);
+	render->materials.create(render->allocator, create_info->max_materials);
+	render->meshes.create(render->allocator, create_info->max_meshes);
+	render->instances.create(render->allocator, create_info->max_instances);
+	render->pending_uploads.create(render->allocator, 32);
 
 	HRESULT hr = CreateDXGIFactory1(IID_PPV_ARGS(&render->dxgi_factory));
 	ASSERT(SUCCEEDED(hr), "failed to create dxgi factory");
@@ -338,6 +338,26 @@ void render_dx12_destroy(render_dx12_t* render)
 	render->rtv_heap->Release();
 	render->device->Release();
 	render->dxgi_factory->Release();
+
+	render->views.destroy(render->allocator);
+	render->scripts.destroy(render->allocator);
+	render->textures.destroy(render->allocator);
+	render->shaders.destroy(render->allocator);
+	render->materials.destroy(render->allocator);
+	render->meshes.destroy(render->allocator);
+	render->instances.destroy(render->allocator);
+	render->pending_uploads.destroy(render->allocator);
+
+	for (int i = 0; i < RENDER_MULTI_BUFFERING; ++i)
+	{
+		render_dx12_t::frame_data_t& frame = render->frame[i];
+		frame.delay_delete_queue.destroy(render->allocator);
+	}
+	render->rtv_pool.destroy(render->allocator);
+	render->dsv_pool.destroy(render->allocator);
+	render->cbv_srv_uav_pool.destroy(render->allocator);
+	render->smp_pool.destroy(render->allocator);
+
 	ALLOCATOR_DELETE(render->allocator, render_dx12_t, render);
 }
 
@@ -755,6 +775,7 @@ void render_dx12_shader_destroy(render_dx12_t* render, render_shader_id_t shader
 	{
 		ALLOCATOR_FREE(render->allocator, shader->constant_buffers[i].default_data);
 		shader->constant_buffers[i].pool_buffer->Release();
+		shader->constant_buffers[i].pool.destroy(render->allocator);
 	}
 
 	render->shaders.free_handle(shader_id);
@@ -900,7 +921,7 @@ render_result_t render_dx12_instance_set_data(render_dx12_t* render, size_t num_
 	return RENDER_RESULT_OK;
 }
 
-static void render_dx12_push_barrier(array_t<D3D12_RESOURCE_BARRIER>& barriers, ID3D12Resource* resource, D3D12_RESOURCE_STATES before, D3D12_RESOURCE_STATES after)
+static void render_dx12_push_barrier(render_dx12_t* render, array_t<D3D12_RESOURCE_BARRIER>& barriers, ID3D12Resource* resource, D3D12_RESOURCE_STATES before, D3D12_RESOURCE_STATES after)
 {
 	D3D12_RESOURCE_BARRIER barrier_desc;
 	barrier_desc.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
@@ -910,7 +931,7 @@ static void render_dx12_push_barrier(array_t<D3D12_RESOURCE_BARRIER>& barriers, 
 	barrier_desc.Transition.StateBefore = before;
 	barrier_desc.Transition.StateAfter = after;
 	if (barriers.full())
-		barriers.grow();
+		barriers.grow(render->allocator);
 	barriers.append(barrier_desc);
 }
 
@@ -944,8 +965,8 @@ struct render_dx12_pass_context_t
 
 static void render_dx12_do_draw(render_dx12_t* render, render_dx12_pass_context_t& ctx, render_dx12_pass_t* pass, render_dx12_view_t* view, render_dx12_script_t* script, size_t ip)
 {
-	array_t<D3D12_RESOURCE_BARRIER> barriers(render->allocator, 8); // TODO: persist between frames or temp alloc
-	array_t<render_dx12_sort_object_t> sort_objects(render->allocator, ctx.num_instances); // TODO: persist between frames or temp alloc
+	scoped_array_t<D3D12_RESOURCE_BARRIER> barriers(render->allocator, 8); // TODO: persist between frames or temp alloc
+	scoped_array_t<render_dx12_sort_object_t> sort_objects(render->allocator, ctx.num_instances); // TODO: persist between frames or temp alloc
 
 	size_t argument_size = ctx.num_instances * sizeof(render_dx12_indirect_argument_t);
 	size_t argument_data_offset = render->upload_ring.get(argument_size);
@@ -983,13 +1004,13 @@ static void render_dx12_do_draw(render_dx12_t* render, render_dx12_pass_context_
 
 	// TODO: use one argument buffer per pass, not one for whole frame
 	barriers.clear();
-	render_dx12_push_barrier(barriers, render->argument_buffer, D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT, D3D12_RESOURCE_STATE_COPY_DEST);
+	render_dx12_push_barrier(render, barriers, render->argument_buffer, D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT, D3D12_RESOURCE_STATE_COPY_DEST);
 	ctx.command_list->ResourceBarrier((UINT)barriers.length(), barriers.begin());
 
 	ctx.command_list->CopyBufferRegion(render->argument_buffer, 0, render->upload_resource, argument_data_offset, argument_size);
 
 	barriers.clear();
-	render_dx12_push_barrier(barriers, render->argument_buffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
+	render_dx12_push_barrier(render, barriers, render->argument_buffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
 	ctx.command_list->ResourceBarrier((UINT)barriers.length(), barriers.begin());
 
 	D3D12_CPU_DESCRIPTOR_HANDLE* color_targets = nullptr;
@@ -1100,13 +1121,13 @@ void render_dx12_kick_render(render_dx12_t* render, render_view_id_t view_id, re
 	render_dx12_pass_context_t ctx = { 0 };
 
 	HRESULT hr;
-	array_t<D3D12_RESOURCE_BARRIER> barriers(render->allocator, 8); // TODO: persist between frames or temp alloc
+	scoped_array_t<D3D12_RESOURCE_BARRIER> barriers(render->allocator, 8); // TODO: persist between frames or temp alloc
 
 	// Get current backbuffer
 	ctx.backbuffer_index = render->swapchain->GetCurrentBackBufferIndex();
 	render_dx12_t::backbuffer_data_t& backbuffer = render->backbuffer[ctx.backbuffer_index];
 
-	render_dx12_push_barrier(barriers, backbuffer.resource, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+	render_dx12_push_barrier(render, barriers, backbuffer.resource, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 
 	ctx.passed_copy_fence = render->copy_fence->GetCompletedValue();
 	for (size_t i = 0; i < render->pending_uploads.length(); )
@@ -1115,7 +1136,7 @@ void render_dx12_kick_render(render_dx12_t* render, render_view_id_t view_id, re
 		render_dx12_upload_t& upload = render->pending_uploads[i];
 		if (upload.upload_fence <= ctx.passed_copy_fence)
 		{
-			render_dx12_push_barrier(barriers, upload.resoure, upload.src_state, upload.dst_state); // TODO: no swapping here
+			render_dx12_push_barrier(render, barriers, upload.resoure, upload.src_state, upload.dst_state); // TODO: no swapping here
 			render->pending_uploads.remove_at_fast(i);
 		}
 		else
@@ -1171,16 +1192,16 @@ void render_dx12_kick_render(render_dx12_t* render, render_view_id_t view_id, re
 	}
 
 	barriers.clear();
-	render_dx12_push_barrier(barriers, render->instance_buffer, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_DEST);
-	render_dx12_push_barrier(barriers, view->constant_buffer, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, D3D12_RESOURCE_STATE_COPY_DEST);
+	render_dx12_push_barrier(render, barriers, render->instance_buffer, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_DEST);
+	render_dx12_push_barrier(render, barriers, view->constant_buffer, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, D3D12_RESOURCE_STATE_COPY_DEST);
 	frame.command_list->ResourceBarrier((UINT)barriers.length(), barriers.begin());
 
 	frame.command_list->CopyBufferRegion(render->instance_buffer, 0, render->upload_resource, instance_data_offset, instance_size);
 	frame.command_list->CopyBufferRegion(view->constant_buffer, 0, render->upload_resource, view_data_offset, view_size);
 
 	barriers.clear();
-	render_dx12_push_barrier(barriers, render->instance_buffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-	render_dx12_push_barrier(barriers, view->constant_buffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+	render_dx12_push_barrier(render, barriers, render->instance_buffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+	render_dx12_push_barrier(render, barriers, view->constant_buffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
 	frame.command_list->ResourceBarrier((UINT)barriers.length(), barriers.begin());
 
 	for (size_t p = 0; p < script->num_passes; ++p)
@@ -1189,7 +1210,7 @@ void render_dx12_kick_render(render_dx12_t* render, render_view_id_t view_id, re
 	}
 
 	barriers.clear();
-	render_dx12_push_barrier(barriers, backbuffer.resource, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+	render_dx12_push_barrier(render, barriers, backbuffer.resource, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
 	frame.command_list->ResourceBarrier((UINT)barriers.length(), barriers.begin());
 
 	hr = frame.command_list->Close();

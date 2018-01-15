@@ -14,13 +14,6 @@ struct range_pool_t
 	array_t<range_t> _ranges;
 	T _num_ids;
 
-	range_pool_t() : _ranges(), _num_ids(0) { }
-
-	range_pool_t(allocator_t* alloc, T num_ids, size_t range_capacity = 0)
-	{
-		create(alloc, num_ids, range_capacity);
-	}
-
 	void create(allocator_t* alloc, T num_ids, size_t range_capacity = 0)
 	{
 		_ranges.create(alloc, range_capacity ? range_capacity : (num_ids / 4));
@@ -32,6 +25,11 @@ struct range_pool_t
 		};
 
 		_ranges.append(range);
+	}
+	
+	void destroy(allocator_t* allocator)
+	{
+		_ranges.destroy(allocator);
 	}
 
 	T alloc(const T count)

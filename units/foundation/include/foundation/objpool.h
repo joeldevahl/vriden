@@ -6,46 +6,29 @@
 template<class T, class TH = uint16_t>
 struct objpool_t
 {
-	allocator_t* _alloc;
 	size_t       _capacity;
 	size_t       _num_free;
 	TH*          _handles;
 	T*           _data;
 
-	objpool_t() : _alloc(NULL), _capacity(0), _num_free(0), _handles(NULL), _data(NULL) { }
-
-	objpool_t(allocator_t* alloc, size_t capacity) : _alloc(NULL), _capacity(0), _num_free(0), _handles(NULL), _data(NULL)
-	{
-		create(alloc, capacity);
-	}
-
-	~objpool_t()
-	{
-		destroy();
-	}
-
-	void create(allocator_t* alloc, size_t capacity)
+	void create(allocator_t* allocator, size_t capacity)
 	{
 		ASSERT(_handles == NULL, "objpool was already created");
 		ASSERT(_data == NULL, "objpool alrady created");
 
-		_alloc = alloc;
 		_capacity = capacity;
 		_num_free = capacity;
-		_handles = (TH*)ALLOCATOR_ALLOC(alloc, capacity*sizeof(TH), ALIGNOF(TH));
-		_data = (T*)ALLOCATOR_ALLOC(alloc, sizeof(T)*capacity, ALIGNOF(T));
+		_handles = (TH*)ALLOCATOR_ALLOC(allocator, capacity*sizeof(TH), ALIGNOF(TH));
+		_data = (T*)ALLOCATOR_ALLOC(allocator, sizeof(T)*capacity, ALIGNOF(T));
 
 		for(size_t i = 0; i < capacity; ++i)
 			_handles[i] = static_cast<TH>(capacity - i - 1);
 	}
 
-	void destroy()
+	void destroy(allocator_t* allocator)
 	{
-		if (_alloc)
-		{
-			ALLOCATOR_FREE(_alloc, _handles);
-			ALLOCATOR_FREE(_alloc, _data);
-		}
+		ALLOCATOR_FREE(allocator, _handles);
+		ALLOCATOR_FREE(allocator, _data);
 	}
 
 	bool full() const

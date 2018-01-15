@@ -6,40 +6,25 @@
 template<class TH = uint16_t>
 struct idpool_t
 {
-	allocator_t* _alloc;
 	size_t       _capacity;
 	size_t       _num_free;
 	TH*          _handles;
 
-	idpool_t() : _alloc(NULL), _capacity(0), _num_free(0), _handles(NULL) {}
-
-	idpool_t(allocator_t* alloc, size_t capacity) : _alloc(NULL), _capacity(0), _num_free(0), _handles(NULL)
-	{
-		create(alloc, capacity);
-	}
-
-	~idpool_t()
-	{
-		destroy();
-	}
-
-	void create(allocator_t* alloc, size_t capacity)
+	void create(allocator_t* allocator, size_t capacity)
 	{
 		ASSERT(_handles == NULL, "idpool was already created");
 
-		_alloc = alloc;
 		_capacity = capacity;
 		_num_free = capacity;
-		_handles = (TH*)ALLOCATOR_ALLOC(alloc, capacity*sizeof(TH), ALIGNOF(TH));
+		_handles = ALLOCATOR_ALLOC_ARRAY(allocator, capacity, TH);
 
 		for(size_t i = 0; i < capacity; ++i)
 			_handles[i] = static_cast<TH>(capacity - i - 1);
 	}
 
-	void destroy()
+	void destroy(allocator_t* allocator)
 	{
-		if(_alloc)
-			ALLOCATOR_FREE(_alloc, _handles);
+		ALLOCATOR_FREE(allocator, _handles);
 	}
 
 	size_t capacity() const

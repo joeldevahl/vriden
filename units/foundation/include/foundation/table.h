@@ -27,29 +27,10 @@ struct table_t
 	size_t _capacity;
 	size_t _num_buckets;
 
-	allocator_t* _allocator;
-
-	table_t() : _buckets(nullptr), _vals(nullptr), _free_list(nullptr), _capacity(0), _num_buckets(0), _allocator(nullptr) { }
-
-	table_t(allocator_t* allocator, size_t capacity, size_t num_buckets) : _buckets(nullptr), _vals(nullptr), _free_list(nullptr), _capacity(0), _num_buckets(0), _allocator(nullptr)
-	{
-		create(allocator, capacity, num_buckets);
-	}
-
-	~table_t()
-	{
-		if(_allocator)
-		{
-			ALLOCATOR_FREE(_allocator, _vals);
-			ALLOCATOR_FREE(_allocator, _buckets);
-		}
-	}
-
 	void create(allocator_t* allocator, size_t capacity, size_t num_buckets)
 	{
 		ASSERT(_buckets == nullptr, "table was already created");
 		ASSERT(_vals == nullptr, "table was already created");
-		_allocator = allocator;
 		_capacity = capacity;
 		_num_buckets = num_buckets;
 
@@ -67,6 +48,12 @@ struct table_t
 			}
 			_free_list = _vals;
 		}
+	}
+
+	void destroy(allocator_t* allocator)
+	{
+		ALLOCATOR_FREE(allocator, _vals);
+		ALLOCATOR_FREE(allocator, _buckets);
 	}
 
 	size_t capacity() const { return _capacity; }

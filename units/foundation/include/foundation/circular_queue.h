@@ -7,32 +7,22 @@ template<class T>
 struct circular_queue_t
 {
 	T* _ptr;
-	allocator_t* _allocator;
 	size_t _capacity;
 	size_t _count;
 	size_t _put;
 
-	circular_queue_t() : _ptr(NULL), _allocator(NULL), _capacity(0), _count(0), _put(0) {}
-
-	circular_queue_t(allocator_t* allocator, size_t capacity) : _ptr(NULL), _allocator(NULL), _capacity(0), _count(0), _put(0)
-	{
-		create(allocator, capacity);
-	}
-
-	~circular_queue_t()
-	{
-		if(_ptr)
-			ALLOCATOR_FREE(_allocator, _ptr);
-	}
-
 	void create(allocator_t* allocator, size_t capacity)
 	{
 		ASSERT(_ptr == NULL, "queue was already created");
-		_allocator = allocator;
 		_capacity = capacity;
 		_count = 0;
 		_put = 0;
 		_ptr = (T*)ALLOCATOR_ALLOC(allocator, capacity * sizeof(T), ALIGNOF(T));
+	}
+	
+	void destroy(allocator_t* allocator)
+	{
+		ALLOCATOR_FREE(allocator, _ptr);
 	}
 
 	bool empty() const

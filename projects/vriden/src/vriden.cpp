@@ -154,7 +154,7 @@ int application_main(application_t* application)
 	vfs_sync_read(vfs, &allocator_malloc, "vriden_precache.txt", (void**)&precache_text, &precache_size);
 	precache_text[precache_size - 1] = '\0';
 
-	array_t<resource_handle_t> handles(&allocator_malloc, 128);
+	scoped_array_t<resource_handle_t> handles(&allocator_malloc, 128);
 	char* precache_name = strtok(precache_text, "\r\n");
 	while (precache_name != nullptr)
 	{

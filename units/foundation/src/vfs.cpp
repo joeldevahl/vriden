@@ -92,7 +92,6 @@ vfs_t* vfs_create(const vfs_create_params_t* params)
 	vfs->request_pool.create(params->allocator, params->max_requests);
 	vfs->request_queue.create(params->allocator, params->max_requests);
 
-
 	vfs->thread = std::thread(vfs_thread, vfs);
 
 	return vfs;
@@ -103,6 +102,10 @@ void vfs_destroy(vfs_t* vfs)
 	vfs->thread_exit = true;
 	vfs->cond.notify_all();
 	vfs->thread.join();
+
+	vfs->request_queue.destroy(vfs->allocator);
+	vfs->request_pool.destroy(vfs->allocator);
+	vfs->mounts.destroy(vfs->allocator);
 
 	ALLOCATOR_DELETE(vfs->allocator, vfs_t, vfs);
 }

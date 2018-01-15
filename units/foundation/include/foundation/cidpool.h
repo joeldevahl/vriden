@@ -6,28 +6,14 @@
 template<class TH = uint16_t>
 struct cidpool_t
 {
-	allocator_t* _allocator;
 	size_t       _capacity;
 	size_t       _num_free;
 	TH*          _handles;
 	TH*          _indices;
 
-	cidpool_t() : _allocator(NULL), _capacity(0), _num_free(0), _handles(NULL), _indices(NULL) {}
-
-	cidpool_t(allocator_t allocator, size_t capacity) : _allocator(NULL), _capacity(0), _num_free(0), _handles(NULL), _indices(NULL)
-	{
-		create(allocator, capacity);
-	}
-
-	~cidpool_t()
-	{
-		destroy();
-	}
-
 	void create(allocator_t* allocator, size_t capacity)
 	{
 		ASSERT(_handles == NULL && _indices == NULL, "cidpool was already created");
-		_allocator = allocator;
 		_capacity = capacity;
 		_num_free = capacity;
 		_handles = (TH*)ALLOCATOR_ALLOC(allocator, capacity*sizeof(TH), alignof(TH));
@@ -37,13 +23,10 @@ struct cidpool_t
 			_handles[i] = static_cast<TH>(capacity - i - 1);
 	}
 	
-	void destroy()
+	void destroy(allocator_t* allocator)
 	{
-		if (_allocator)
-		{
-			ALLOCATOR_FREE(_allocator, _handles);
-			ALLOCATOR_FREE(_allocator, _indices);
-		}
+		ALLOCATOR_FREE(allocator, _handles);
+		ALLOCATOR_FREE(allocator, _indices);
 	}
 
 	size_t capacity() const

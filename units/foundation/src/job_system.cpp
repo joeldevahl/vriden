@@ -218,6 +218,9 @@ void job_system_destroy(job_system_t* system)
 		allocator_incheap_destroy(system->threads[i].incheap);
 		system->threads[i].~job_context_t();
 	}
+	system->threads.destroy(system->alloc);
+	
+	allocator_incheap_destroy(system->main_thread_context.incheap);
 
 	while (job_queue_slot_t* job = system->queue.pop_front())
 	{
@@ -243,6 +246,8 @@ void job_system_destroy(job_system_t* system)
 		dlclose(i.second.handle);
 #endif //#if defined(FAMILY_*)
 	}
+
+	system->cached_functions.destroy(system->alloc);
 
 	ALLOCATOR_DELETE(system->alloc, job_system_t, system);
 }

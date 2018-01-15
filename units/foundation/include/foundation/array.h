@@ -12,49 +12,38 @@ struct array_t
 	T* _ptr;
 	size_t _capacity;
 	size_t _length;
-	allocator_t* _alloc;
 
-	array_t() : _ptr(NULL), _capacity(0), _length(0), _alloc(NULL) { }
-
-	array_t(allocator_t* alloc, size_t capacity = 0) : _ptr(NULL), _capacity(0), _length(0), _alloc(NULL)
-	{
-		create(alloc, capacity);
-	}
-
-	~array_t()
-	{
-		if(_alloc)
-			ALLOCATOR_FREE(_alloc, _ptr);
-	}
-
-	void create(allocator_t* alloc, size_t capacity)
+	void create(allocator_t* allocator, size_t capacity)
 	{
 		ASSERT(_ptr == NULL, "array was already created");
-		_alloc = alloc;
 		_capacity = capacity;
 		_length = 0;
 		if(capacity)
-			_ptr = (T*)ALLOCATOR_ALLOC(alloc, capacity * sizeof(T), ALIGNOF(T));
+			_ptr = (T*)ALLOCATOR_ALLOC(allocator, capacity * sizeof(T), ALIGNOF(T));
 	}
 
-	void set_capacity(size_t new_capacity)
+	void destroy(allocator_t* allocator)
 	{
-		ASSERT(_alloc != NULL, "array was not created before calling set_capacity");
+		ALLOCATOR_FREE(allocator, _ptr);
+	}
+
+	void set_capacity(allocator_t* allocator, size_t new_capacity)
+	{
 		ASSERT(new_capacity >= _capacity, "array cannot shrink in size for now");
 
-		_ptr = ALLOCATOR_REALLOC_ARRAY(_alloc, _ptr, new_capacity, T);
+		_ptr = ALLOCATOR_REALLOC_ARRAY(allocator, _ptr, new_capacity, T);
 		_capacity = new_capacity;
 	}
 
-	void grow(size_t amount = 0)
+	void grow(allocator_t* allocator, size_t amount = 0)
 	{
-		set_capacity(_capacity + (amount ? amount : _capacity));
+		set_capacity(allocator, _capacity + (amount ? amount : _capacity));
 	}
 
-	void ensure_capacity(size_t new_capacity)
+	void ensure_capacity(allocator_t* allocator, size_t new_capacity)
 	{
 		if (_capacity < new_capacity)
-			set_capacity(new_capacity);
+			set_capacity(allocator, new_capacity);
 	}
 
 	T& operator[](size_t i)
@@ -187,5 +176,32 @@ struct array_t
 		memmove(_ptr + i + 1, _ptr + i, (_length - i) * sizeof(T));
 		memcpy(_ptr + i, &val, sizeof(T));
 		_length += 1;
+	}
+};
+
+template<class T>
+struct scoped_array_t : public array_t<T>
+{
+	allocator_t* _allocator;
+
+	scoped_array_t(allocator_t* allocator, size_t capacity)
+		: _allocator(allocator)
+	{
+		create(_allocator, capacity);
+	}
+
+	~scoped_array_t()
+	{
+		destroy(_allocator);
+	}
+
+	void grow(size_t amount = 0)
+	{
+		grow(_allocator, amount);
+	}
+
+	void ensure_capacity(size_t new_capacity)
+	{
+		ensure_capacity(_allocator, new_capacity);
 	}
 };

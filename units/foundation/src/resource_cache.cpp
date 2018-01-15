@@ -34,15 +34,19 @@ resource_cache_t* resource_cache_create(const resource_cache_create_params_t* pa
 	cache->allocator = params->allocator;
 	cache->vfs = params->vfs;
 
-	cache->creators.create(params->allocator, params->max_creators, 16);
-	cache->resources.create(params->allocator, params->max_resources, 16);
-	cache->handle_pool.create(params->allocator, params->max_resource_handles);
+	cache->creators.create(cache->allocator, params->max_creators, 16);
+	cache->resources.create(cache->allocator, params->max_resources, 16);
+	cache->handle_pool.create(cache->allocator, params->max_resource_handles);
 
 	return cache;
 }
 
 void resource_cache_destroy(resource_cache_t* cache)
 {
+	cache->handle_pool.destroy(cache->allocator);
+	cache->resources.destroy(cache->allocator);
+	cache->creators.destroy(cache->allocator);
+
 	ALLOCATOR_DELETE(cache->allocator, resource_cache_t, cache);
 }
 
