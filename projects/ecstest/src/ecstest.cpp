@@ -119,22 +119,22 @@ struct render_component_t
 {
 	float transform[16];
 };
-/*
+
 struct position_job_arg_t
 {
 	position_component_t* positions;
 	entity_id_t* eids;
 	uint32_t count;
+	float time;
 };
 
-void position_job(job_context_t* context, void* arg)
+void position_job_func(job_context_t* context, void* arg)
 {
-	query_all_result_t position_res = {};
-	ecs_res = ecs_query_all_components(ecs, position_type_id, &position_res);
-
-	position_component_t* positions = (position_component_t*)position_res.component_data;
-	entity_id_t* eids = position_res.eids;
-	uint32_t count = position_res.count;
+	position_job_arg_t* position_arg = (position_job_arg_t*)arg;
+	position_component_t* positions = position_arg->positions;
+	entity_id_t* eids = position_arg->eids;
+	uint32_t count = position_arg->count;
+	float t = position_arg->time;
 
 	for (uint32_t i = 0; i < count; ++i)
 	{
@@ -148,26 +148,35 @@ void position_job(job_context_t* context, void* arg)
 	}
 }
 
-void render_job(job_context_t* context, void* arg)
+struct render_job_arg_t
 {
-	query_all_result_t render_res = {};
-	ecs_res = ecs_query_all_components(ecs, render_type_id, &render_res);
+	ecs_t* ecs;
+	component_type_id_t position_type_id;
+	render_component_t* renders;
+	entity_id_t* eids;
+	uint32_t count;
+};
 
-	render_component_t* renders = (render_component_t*)render_res.component_data;
-	entity_id_t* eids = render_res.eids;
-	uint32_t count = render_res.count;
+void render_job_func(job_context_t* context, void* arg)
+{
+	render_job_arg_t* render_arg = (render_job_arg_t*)arg;
+	ecs_t* ecs = render_arg->ecs;
+	component_type_id_t position_type_id = render_arg->position_type_id;
+	render_component_t* renders = render_arg->renders;
+	entity_id_t* eids = render_arg->eids;
+	uint32_t count = render_arg->count;
 
 	for (uint32_t i = 0; i < count; ++i)
 	{
 		query_result_t position_res = {};
-		ecs_res = ecs_query_component(ecs, eids[i], position_type_id, &position_res);
+		ecs_result_t ecs_res = ecs_query_component(ecs, eids[i], position_type_id, &position_res); // TODO: batch get? also thread safe (work graph?)
 		ASSERT(ecs_res == ECS_RESULT_OK);
 		position_component_t* position = (position_component_t*)position_res.component_data;
 
 		memcpy(renders[i].transform, position->transform, sizeof(renders[i].transform));
 	}
 }
-*/
+
 int application_main(application_t* application)
 {
 	allocator_t* allocator = &eop_allocator;
@@ -205,7 +214,7 @@ int application_main(application_t* application)
 	position_component_create_info.max_components = NUM_ENTITIES;
 	component_type_id_t position_type_id = {};
 	ecs_res = ecs_register_component_type(ecs, &position_component_create_info, &position_type_id);
-	
+
 	component_type_create_info_t render_component_create_info = {};
 	render_component_create_info.component_size = sizeof(render_component_t);
 	render_component_create_info.max_components = NUM_ENTITIES;
@@ -239,24 +248,42 @@ int application_main(application_t* application)
 		uint64_t time = curr - start;
 		float t = (float)time / (float)freq;
 		application_update(application);
-/*
+
+		query_all_result_t position_res = {};
+		ecs_res = ecs_query_all_components(ecs, position_type_id, &position_res); // TODO: bake query into job (or job setup)
+
+		position_job_arg_t position_job_arg = {};
+		position_job_arg.positions = (position_component_t*)position_res.component_data;
+		position_job_arg.eids = position_res.eids;
+		position_job_arg.count = position_res.count;
+		position_job_arg.time = t;
+
 		job_event_t* positions_done = nullptr;
 		job_res = job_system_acquire_event(job_system, &positions_done);
 		ASSERT(job_res == JOB_SYSTEM_OK);
-		job_res = job_system_kick_ptr(job_system, position_job, 1, args, nullptr, positions_done);
+		job_res = job_system_kick_ptr(job_system, position_job_func, 1, &position_job_arg, nullptr, positions_done);
 		ASSERT(job_res == JOB_SYSTEM_OK);
+
+		query_all_result_t render_res = {};
+		ecs_res = ecs_query_all_components(ecs, render_type_id, &render_res); // TODO: bake query into job (or job setup)
+
+		render_job_arg_t render_job_arg = {};
+		render_job_arg.ecs = ecs;
+		render_job_arg.position_type_id = position_type_id;
+		render_job_arg.renders = (render_component_t*)render_res.component_data;
+		render_job_arg.eids = render_res.eids;
+		render_job_arg.count = render_res.count;
 
 		job_event_t* render_done = nullptr;
 		job_res = job_system_acquire_event(job_system, &render_done);
 		ASSERT(job_res == JOB_SYSTEM_OK);
-		job_res = job_system_kick_ptr(job_system, render_job, 1, args, positions_done, positions_done);
+		job_res = job_system_kick_ptr(job_system, render_job_func, 1, &render_job_arg, positions_done, render_done);
 		ASSERT(job_res == JOB_SYSTEM_OK);
 
 		job_res = job_system_wait_release_event(job_system, render_done);
 		ASSERT(job_res == JOB_SYSTEM_OK);
 		job_res = job_system_release_event(job_system, positions_done);
 		ASSERT(job_res == JOB_SYSTEM_OK);
-*/
 	}
 	
 	for (uint32_t i = 0; i < NUM_ENTITIES; ++i)
