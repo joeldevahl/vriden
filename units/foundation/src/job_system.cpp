@@ -229,6 +229,7 @@ void job_system_destroy(job_system_t* system)
 	}
 	while (job_queue_slot_t* job = system->free_slots.pop_front())
 	{
+		ALLOCATOR_FREE(system->alloc, job->data);
 		ALLOCATOR_FREE(system->alloc, job);
 	}
 	while (job_event_t* event = system->free_events.pop_front())
