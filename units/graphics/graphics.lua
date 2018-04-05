@@ -101,8 +101,11 @@ function Unit.Build(self)
 	local graphics_src = {
 		PathJoin(self.path, "src/render_common.cpp"),
 		PathJoin(self.path, "src/render_null.cpp"),
-		PathJoin(self.path, "src/render_dx12.cpp"),
 	}
+
+	if target.family == "windows" then
+		table.insert(graphics_src, PathJoin(self.path, "src/render_dx12.cpp"))
+	end
 
 	local graphics_obj = Compile(self.settings, graphics_src)
 	local graphics = StaticLibrary(self.settings, "graphics", graphics_obj)

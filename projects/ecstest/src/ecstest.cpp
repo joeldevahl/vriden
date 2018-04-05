@@ -7,7 +7,9 @@
 #include <foundation/time.h>
 #include <game/ecs.h>
 
-#include <windows.h>
+#if defined(FAMILY_WINDOWS)
+	#include <windows.h>
+#endif
 #include <stdint.h>
 
 #include <glm/glm.hpp>
@@ -40,22 +42,37 @@ static uint64_t PAGE_SIZE = 4 * 1024 * 1024; // 4KiB by default
 
 void* virtual_reserve(uint64_t size)
 {
+#if defined(FAMILY_WINDOWS)
 	return VirtualAlloc(NULL, size, MEM_RESERVE, 0);
+#else
+	return malloc(size);
+#endif
 }
 
 void virtual_commit(void* addr, uint64_t size)
 {
+#if defined(FAMILY_WINDOWS)
 	VirtualAlloc(addr, size, MEM_COMMIT, PAGE_READWRITE);
+#else
+#endif
 }
 
 void* virtual_alloc(uint64_t size)
 {
+#if defined(FAMILY_WINDOWS)
 	return VirtualAlloc(NULL, size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+#else
+	return malloc(size);
+#endif
 }
 
 void virtual_release(void* addr, uint64_t size)
 {
+#if defined(FAMILY_WINDOWS)
 	VirtualAlloc(addr, size, MEM_RELEASE, 0);
+#else
+	free(addr);
+#endif
 }
 
 static linked_list_t<allocation_instance_t> allocation_list;
@@ -133,6 +150,7 @@ void position_job_func(job_context_t* context, void* arg)
 	position_job_arg_t* position_arg = (position_job_arg_t*)arg;
 	position_component_t* positions = position_arg->positions;
 	entity_id_t* eids = position_arg->eids;
+	(void)eids;
 	uint32_t count = position_arg->count;
 	float t = position_arg->time;
 

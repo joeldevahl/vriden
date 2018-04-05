@@ -206,12 +206,22 @@ struct aiColor3D
 
 	/** Access a specific color component */
 	float operator[](unsigned int i) const {
-		return *(&r + i);
+		switch(i)
+		{
+			case 0:  return r;
+			case 1:  return g;
+			default: return b;
+		}
 	}
 
 	/** Access a specific color component */
 	float& operator[](unsigned int i) {
-		return *(&r + i);
+		switch(i)
+		{
+			case 0:  return r;
+			case 1:  return g;
+			default: return b;
+		}
 	}
 
 	/** Check whether a color is black */

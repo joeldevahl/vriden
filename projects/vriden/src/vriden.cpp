@@ -58,6 +58,7 @@ int application_main(application_t* application)
 	resource_context.job_system = job_system;
 
 	job_system_result_t job_res =  job_system_load_bundle(job_system, "vriden_jobs" CONFIG_SUFFIX DYNAMIC_LIBRARY_EXTENSION);
+	(void)job_res;
 
 	vfs_create_params_t vfs_params;
 	vfs_params.allocator = &allocator_malloc;
@@ -75,6 +76,7 @@ int application_main(application_t* application)
 	dl_create_params_t dl_create_params;
 	DL_CREATE_PARAMS_SET_DEFAULT(dl_create_params);
 	dl_error_t err = dl_context_create(&dl_ctx, &dl_create_params);
+	(void)err;
 	resource_context.dl_ctx = dl_ctx;
 
 	resource_cache_create_params_t resource_cache_params;

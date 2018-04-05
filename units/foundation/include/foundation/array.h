@@ -187,12 +187,12 @@ struct scoped_array_t : public array_t<T>
 	scoped_array_t(allocator_t* allocator, size_t capacity)
 		: _allocator(allocator)
 	{
-		create(_allocator, capacity);
+		this->create(_allocator, capacity);
 	}
 
 	~scoped_array_t()
 	{
-		destroy(_allocator);
+		this->destroy(_allocator);
 	}
 
 	void grow(size_t amount = 0)
