@@ -107,6 +107,10 @@ function Unit.Build(self)
 		table.insert(graphics_src, PathJoin(self.path, "src/render_dx12.cpp"))
 	end
 
+	if target.platform == "osx" then
+		table.insert(graphics_src, PathJoin(self.path, "src/render_metal.cpp"))
+	end
+
 	local graphics_obj = Compile(self.settings, graphics_src)
 	local graphics = StaticLibrary(self.settings, "graphics", graphics_obj)
 	self:AddProduct(graphics)

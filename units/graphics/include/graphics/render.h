@@ -36,7 +36,8 @@ typedef enum render_backend_t
 {
 	RENDER_BACKEND_NULL = 0,
 	RENDER_BACKEND_DX12,
-	RENDER_BACKEND_VK,
+	RENDER_BACKEND_VULKAN,
+	RENDER_BACKEND_METAL,
 } render_backend_t;
 
 /******************************************************************************\

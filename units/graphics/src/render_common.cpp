@@ -19,6 +19,8 @@
 	{ \
 		case RENDER_BACKEND_NULL: \
 			return render_null_ ## func ((render_null_t*)render, ##__VA_ARGS__); \
+		case RENDER_BACKEND_METAL: \
+			return render_metal_ ## func ((render_metal_t*)render, ##__VA_ARGS__); \
 		default: \
 			BREAKPOINT(); \
 	}
@@ -35,7 +37,7 @@ render_result_t render_create(const render_create_info_t* create_info, render_t*
 #if defined(FAMILY_WINDOWS)
 	res = render_dx12_create(create_info, (render_dx12_t**)&render);
 #elif defined(PLATFORM_OSX)
-	res = render_null_create(create_info, (render_null_t**)&render);
+	res = render_metal_create(create_info, (render_metal_t**)&render);
 #else
 #	error not implemented for the platform
 #endif
