@@ -21,7 +21,7 @@
 
 struct allocation_instance_t : list_node_t<allocation_instance_t>
 {
-	size_t size;
+	int64_t size;
 	void* base;
 	const char* file;
 	int line;
@@ -77,7 +77,7 @@ void virtual_release(void* addr, uint64_t size)
 
 static linked_list_t<allocation_instance_t> allocation_list;
 
-void* eop_alloc(allocator_t* allocator, size_t count, size_t size, size_t align, const char* file, int line)
+void* eop_alloc(allocator_t* allocator, int64_t count, int64_t size, int64_t align, const char* file, int line)
 {
 	size_t extra = allocator_calc_extra_mem_needed(allocator, align);
 
@@ -109,7 +109,7 @@ void eop_free(allocator_t* allocator, void* memory, const char* file, int line)
 	}
 }
 
-void* eop_realloc(allocator_t* allocator, void* memory, size_t count, size_t size, size_t align, const char* file, int line)
+void* eop_realloc(allocator_t* allocator, void* memory, int64_t count, int64_t size, int64_t align, const char* file, int line)
 {
 	void* new_mem = eop_alloc(allocator, count, size, align, file, line);
 	if (memory)

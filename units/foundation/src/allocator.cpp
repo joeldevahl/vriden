@@ -4,12 +4,12 @@
 
 #include <cstdlib>
 
-void* allocator_alloc_wrapper(allocator_t* allocator, size_t count, size_t size, size_t align, const char* file, int line)
+void* allocator_alloc_wrapper(allocator_t* allocator, int64_t count, int64_t size, int64_t align, const char* file, int line)
 {
 	return allocator->alloc(allocator, count, size, align, file, line);
 }
 
-void* allocator_realloc_wrapper(allocator_t* allocator, void* memory, size_t count, size_t size, size_t align, const char* file, int line)
+void* allocator_realloc_wrapper(allocator_t* allocator, void* memory, int64_t count, int64_t size, int64_t align, const char* file, int line)
 {
 	return allocator->realloc(allocator, memory, count, size, align, file, line);
 }
@@ -19,7 +19,7 @@ void allocator_free_wrapper(allocator_t* allocator, void* memory, const char* fi
 	allocator->free(allocator, memory, file, line);
 }
 
-void* allocator_malloc_alloc(allocator_t* allocator, size_t count, size_t size, size_t align, const char* file, int line)
+void* allocator_malloc_alloc(allocator_t* allocator, int64_t count, int64_t size, int64_t align, const char* file, int line)
 {
 	(void)allocator;
 	(void)file;
@@ -35,7 +35,7 @@ void* allocator_malloc_alloc(allocator_t* allocator, size_t count, size_t size, 
 #endif
 }
 
-void* allocator_malloc_realloc(allocator_t* allocator, void* memory, size_t count, size_t size, size_t align, const char* file, int line)
+void* allocator_malloc_realloc(allocator_t* allocator, void* memory, int64_t count, int64_t size, int64_t align, const char* file, int line)
 {
 	(void)allocator;
 	(void)file;
@@ -74,11 +74,11 @@ struct allocator_incheap_t : public allocator_t
 	allocator_t* parent;
 
 	uint8_t* baseptr;
-	size_t offset;
-	size_t size;
+	int64_t offset;
+	int64_t size;
 };
 
-void* allocator_incheap_alloc(allocator_t* allocator, size_t count, size_t size, size_t align, const char* file, int line)
+void* allocator_incheap_alloc(allocator_t* allocator, int64_t count, int64_t size, int64_t align, const char* file, int line)
 {
 	(void)file;
 	(void)line;
@@ -89,7 +89,7 @@ void* allocator_incheap_alloc(allocator_t* allocator, size_t count, size_t size,
 	return res;
 }
 
-void* allocator_incheap_realloc(allocator_t* allocator, void* memory, size_t count, size_t size, size_t align, const char* file, int line)
+void* allocator_incheap_realloc(allocator_t* allocator, void* memory, int64_t count, int64_t size, int64_t align, const char* file, int line)
 {
 	(void)allocator;
 	(void)memory;
@@ -114,7 +114,7 @@ void allocator_incheap_free(allocator_t* allocator, void* memory, const char* fi
 void allocator_incheap_reset(allocator_t* allocator, void* mark)
 {
 	allocator_incheap_t* incheap = (allocator_incheap_t*)allocator;
-	uintptr_t new_offset = mark ? reinterpret_cast<uint8_t*>(mark) - incheap->baseptr : 0;
+	intptr_t new_offset = mark ? reinterpret_cast<uint8_t*>(mark) - incheap->baseptr : 0;
 	ASSERT(new_offset >= 0);
 	ASSERT(new_offset < incheap->size);
 	ASSERT(new_offset <= incheap->offset);
@@ -133,13 +133,13 @@ void* allocator_incheap_curr(allocator_t* allocator)
 	return incheap->baseptr + incheap->offset;
 }
 
-size_t allocator_incheap_bytes_consumed(allocator_t* allocator)
+int64_t allocator_incheap_bytes_consumed(allocator_t* allocator)
 {
 	allocator_incheap_t* incheap = (allocator_incheap_t*)allocator;
 	return incheap->offset;
 }
 
-allocator_t* allocator_incheap_create(allocator_t* parent, size_t num_bytes)
+allocator_t* allocator_incheap_create(allocator_t* parent, int64_t num_bytes)
 {
 	allocator_incheap_t* incheap = 0x0;
 	uint8_t* ptr = (uint8_t*)ALLOCATOR_ALLOC(parent, num_bytes + sizeof(allocator_incheap_t), 16);
@@ -209,7 +209,7 @@ void* allocator_helper_get(allocator_helper_t* helper, uintptr_t size, uintptr_t
 	return res;
 }
 
-size_t allocator_helper_size(allocator_helper_t* helper)
+int64_t allocator_helper_size(allocator_helper_t* helper)
 {
 	return helper->size;
 }
