@@ -100,11 +100,18 @@ int main(int argc, const char** argv)
 	shader_data_null_t shader_data_null = {};
 	shader_data.data_null = &shader_data_null;
 
-#if defined(FAMILY_WINDOWS)
+#if defined(FAMILY_WINDOWS) && 0
 	bool compile_shader_dx12(shader_intermediate_t* shader_intermediate, shader_data_dx12_t* shader_data);
 	shader_data_dx12_t shader_data_dx12 = {};
 	if(compile_shader_dx12(shader_intermediate, &shader_data_dx12))
 		shader_data.data_dx12 = &shader_data_dx12;
+#endif
+
+#if defined(FAMILY_WINDOWS) || defined(PLATFORM_LINUX)
+	bool compile_shader_vulkan(shader_intermediate_t* shader_intermediate, shader_data_vulkan_t* shader_data);
+	shader_data_vulkan_t shader_data_vulkan = {};
+	if(compile_shader_vulkan(shader_intermediate, &shader_data_vulkan))
+		shader_data.data_vulkan = &shader_data_vulkan;
 #endif
 
 	err = dl_util_store_to_file(

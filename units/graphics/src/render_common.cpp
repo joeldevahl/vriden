@@ -10,6 +10,8 @@
 			return render_null_ ## func ((render_null_t*)render, __VA_ARGS__); \
 		case RENDER_BACKEND_DX12: \
 			return render_dx12_ ## func ((render_dx12_t*)render, __VA_ARGS__); \
+		case RENDER_BACKEND_VULKAN: \
+			return render_vulkan_ ## func ((render_vulkan_t*)render, __VA_ARGS__); \
 		default: \
 			BREAKPOINT(); \
 	}
@@ -30,20 +32,25 @@
 
 render_result_t render_create(const render_create_info_t* create_info, render_t** out_render)
 {
-	render_result_t res = RENDER_RESULT_OK;
-	render_t* render = nullptr;
-
-	// TODO: backend selection
-#if defined(FAMILY_WINDOWS)
-	res = render_dx12_create(create_info, (render_dx12_t**)&render);
-#elif defined(PLATFORM_OSX)
-	res = render_metal_create(create_info, (render_metal_t**)&render);
-#else
-#	error not implemented for the platform
+#if defined(FAMILY_WINDOWS) || defined(PLATFORM_LINUX)
+	if(create_info->preferred_backend == RENDER_BACKEND_VULKAN)
+		return render_vulkan_create(create_info, (render_vulkan_t**)out_render);
 #endif
 
-	*out_render = render;
-	return res;
+#if defined(FAMILY_WINDOWS)
+	if(create_info->preferred_backend == RENDER_BACKEND_DX12)
+		return render_dx12_create(create_info, (render_dx12_t**)out_render);
+#endif
+
+#if defined(PLATFORM_OSX)
+	if(create_info->preferred_backend == RENDER_BACKEND_METAL)
+		return render_metal_create(create_info, (render_metal_t**)out_render);
+#endif
+	
+	if(create_info->preferred_backend == RENDER_BACKEND_NULL)
+		return render_null_create(create_info, (render_null_t**)out_render);
+
+	return RENDER_RESULT_BACKEND_NOT_SUPPORTED;
 }
 
 void render_destroy(render_t* render)

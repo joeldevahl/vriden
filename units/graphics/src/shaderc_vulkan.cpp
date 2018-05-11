@@ -1,85 +1,66 @@
 #include <foundation/defines.h>
 #include <foundation/hash.h>
 
-#include <d3dcompiler.h>
-#include <d3d12.h>
+#include <units/graphics/types/shader.h>
+#include <units/graphics/types/shader_intermediate.h>
 
 #include <string>
 
-#include <units/graphics/types/shader.h>
-#include <units/graphics/types/shader_intermediate.h>
+#include "shaderc/shaderc.h"
 
 #define ERROR_AND_QUIT(fmt, ...) { fprintf(stderr, "Error: " fmt "\n", ##__VA_ARGS__); return 0x0; }
 #define ERROR_AND_FAIL(fmt, ...) { fprintf(stderr, "Error: " fmt "\n", ##__VA_ARGS__); return 1; }
 
-static int compile_program_dx12(const std::string& code, int stage, uint8_t** out_data, uint32_t* out_size)
+static int compile_program_vulkan(shaderc_compiler_t compiler, const std::string& code, int stage, uint8_t** out_data, uint32_t* out_size)
 {
-	// DX11 shader, concatenate with header and compile using the d3d compiler
-    DWORD flags = D3DCOMPILE_ENABLE_STRICTNESS;
-    flags |= D3DCOMPILE_DEBUG;
+	shaderc_compile_options_t options = shaderc_compile_options_initialize();
+	shaderc_compile_options_set_source_language(options, shaderc_source_language_hlsl);
 
-    ID3DBlob* error = NULL;
-    ID3DBlob* shader = NULL;
-	const char* shader_model[] = {
-		"vs_5_1",
-		"hs_5_1",
-		"ds_5_1",
-		"gs_5_1",
-		"ps_5_1",
+	shaderc_shader_kind shader_kind_lookup[] =
+	{
+		shaderc_vertex_shader,
+		shaderc_tess_control_shader,
+		shaderc_tess_evaluation_shader,
+		shaderc_geometry_shader,
+		shaderc_fragment_shader,
 	};
 
-	//printf("compiling code:\n%s\n", code.c_str());
+	shaderc_compilation_result_t result = shaderc_compile_into_spv(compiler, code.data(), code.length(), shader_kind_lookup[stage], "input_file_name", "main", options);
 
-    HRESULT hr = D3DCompile2(code.c_str(),
-							code.size(),
-							nullptr, // file name
-							nullptr, // defines
-							NULL, // includes
-							"main",
-							shader_model[stage],
-							flags,
-							0, // flags2
-							0, // secondary data flags
-							NULL, // secondary data
-							0, // secondary data size
-							&shader,
-							&error);
-    if(FAILED(hr))
-    {
-        if(error != NULL)
-		{
-			printf("HLSL compiler failed with message:\n%s", (char*)error->GetBufferPointer());
-			error->Release();
-		}
-		else
-		{
-			printf("No Error :(\n");
-		}
-        return hr;
-    }
+	size_t num_errors = shaderc_result_get_num_errors(result);
+	if (num_errors > 0)
+	{
+		const char* errors = shaderc_result_get_error_message(result);
+		ERROR_AND_FAIL("shader failed to compile: stage %d\n%s", stage, errors);
+	}
 
-	*out_data = (uint8_t*)shader->GetBufferPointer();
-	*out_size = (uint32_t)shader->GetBufferSize();
-	//shader->Release(); We skip this since we know we are not a long running process
+	size_t size = shaderc_result_get_length(result);
+	const void* data = shaderc_result_get_bytes(result);
+	*out_data = (uint8_t*)malloc(size);
+	memcpy(*out_data, data, size);
+	*out_size = (uint32_t)size;
+
+	shaderc_result_release(result);
+	shaderc_compile_options_release(options);
 
 	return 0;
 }
 
-bool compile_shader_dx12(shader_intermediate_t* shader_intermediate, shader_data_dx12_t* shader_data)
+bool compile_shader_vulkan(shader_intermediate_t* shader_intermediate, shader_data_vulkan_t* shader_data)
 {
 	size_t num_properties = shader_intermediate->properties.count;
-	shader_property_dx12_t* properties = (shader_property_dx12_t*)malloc(num_properties * sizeof(shader_property_dx12_t));
+	shader_property_vulkan_t* properties = (shader_property_vulkan_t*)malloc(num_properties * sizeof(shader_property_vulkan_t));
 	shader_data->properties.data = properties;
 	shader_data->properties.count = (uint32_t)num_properties;
 
-	shader_constant_buffer_dx12_t* constant_buffers = shader_data->constant_buffers;
+	shader_constant_buffer_vulkan_t* constant_buffers = shader_data->constant_buffers;
 	std::string constant_buffer_code[SHADER_FREQUENCY_MAX] = {};
 
 	constant_buffer_code[SHADER_FREQUENCY_PER_FRAME] = "cbuffer per_frame : register(b0)\n{\n";
-	constant_buffer_code[SHADER_FREQUENCY_PER_VIEW] = "cbuffer per_view : register(b1)\n{\n";
-	constant_buffer_code[SHADER_FREQUENCY_PER_PASS] = "cbuffer per_pass : register(b2)\n{\n";
-	constant_buffer_code[SHADER_FREQUENCY_PER_MATERIAL] = "cbuffer per_material : register(b3)\n{\n";
-	constant_buffer_code[SHADER_FREQUENCY_PER_INSTANCE] = "cbuffer per_instance : register(b4)\n{\n";
+	constant_buffer_code[SHADER_FREQUENCY_PER_VIEW] = "cbuffer per_view : register(b0)\n{\n";
+	constant_buffer_code[SHADER_FREQUENCY_PER_PASS] = "cbuffer per_pass : register(b0)\n{\n";
+	constant_buffer_code[SHADER_FREQUENCY_PER_MATERIAL] = "cbuffer per_material : register(b0)\n{\n";
+	constant_buffer_code[SHADER_FREQUENCY_PER_INSTANCE] = "cbuffer per_instance : register(b0)\n{\n";
 
 	char itoa_scratch[21];
 	for (size_t i = 0; i < num_properties; ++i)
@@ -149,7 +130,7 @@ bool compile_shader_dx12(shader_intermediate_t* shader_intermediate, shader_data
 		}
 	}
 
-	shader_variant_data_dx12_t* variants = (shader_variant_data_dx12_t*)calloc(1, sizeof(shader_variant_data_dx12_t));
+	shader_variant_data_vulkan_t* variants = (shader_variant_data_vulkan_t*)calloc(1, sizeof(shader_variant_data_vulkan_t));
 	shader_data->variants.count = 1;
 	shader_data->variants.data = variants;
 
@@ -160,6 +141,8 @@ bool compile_shader_dx12(shader_intermediate_t* shader_intermediate, shader_data
 		common_code += constant_buffer_code[i];
 		common_code += "\n\n";
 	}
+
+	shaderc_compiler_t compiler = shaderc_compiler_initialize();
 
 	for (int i = 0; i < SHADER_STAGE_MAX; ++i)
 	{
@@ -178,10 +161,12 @@ bool compile_shader_dx12(shader_intermediate_t* shader_intermediate, shader_data
 
 		std::string stage_code = common_code;
 		stage_code += raw_stage_code;
-		int res = compile_program_dx12(stage_code, i, &variants[0].stages[i].program.data, &variants[0].stages[i].program.count);
+		int res = compile_program_vulkan(compiler, stage_code, i, &variants[0].stages[i].program.data, &variants[0].stages[i].program.count);
 		if (res != 0)
 			ERROR_AND_FAIL("Shader failed to compile, see message above");
 	}
+
+	shaderc_compiler_release(compiler);
 
 	return true;
 }

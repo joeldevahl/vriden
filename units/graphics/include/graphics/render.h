@@ -30,6 +30,7 @@ struct material_data_t;
 typedef enum render_result_t
 {
 	RENDER_RESULT_OK,
+	RENDER_RESULT_BACKEND_NOT_SUPPORTED,
 } render_result_t;
 
 typedef enum render_backend_t
@@ -65,6 +66,8 @@ typedef struct render_create_info_t
 {
 	allocator_t* allocator;
 	void* window;
+
+	render_backend_t preferred_backend;
 
 	size_t max_textures;
 	size_t max_shaders;

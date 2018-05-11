@@ -92,6 +92,7 @@ int application_main(application_t* application)
 	render_create_info_t render_create_info;
 	render_create_info.allocator = &allocator_malloc;
 	render_create_info.window = window_get_platform_handle(window);
+	render_create_info.preferred_backend = RENDER_BACKEND_VULKAN;
 	render_create_info.max_textures = 1;
 	render_create_info.max_shaders = 1;
 	render_create_info.max_materials = 1;
@@ -183,7 +184,7 @@ int application_main(application_t* application)
 			resource_handle_t handle;
 			resource_cache_result_t resource_res = resource_cache_create_resource(resource_cache, name_hash, type_hash, data, size, &handle);
 			ASSERT(resource_res == RESOURCE_CACHE_RESULT_OK);
-			handles.append(handle);
+			handles.grow_and_append(handle);
 
 			vfs_res = vfs_end_request(vfs, request);
 			ASSERT(vfs_res == VFS_RESULT_OK, "vfs failed to end request");

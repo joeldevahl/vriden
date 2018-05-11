@@ -88,6 +88,13 @@ function Unit.Patch(self, other_unit)
 		other_unit.settings.dll.libs:Add("d3d12")
 		other_unit.settings.dll.libs:Add("dxguid")
 		other_unit.settings.dll.libs:Add("dxgi")
+
+		other_unit.settings.link.libpath:Add("C:\\VulkanSDK\\1.1.70.1\\Source\\lib")
+		other_unit.settings.dll.libpath:Add("C:\\VulkanSDK\\1.1.70.1\\Source\\lib")
+		other_unit.settings.link.libpath:Add("C:\\VulkanSDK\\1.1.70.1\\lib")
+		other_unit.settings.dll.libpath:Add("C:\\VulkanSDK\\1.1.70.1\\lib")
+		other_unit.settings.link.libs:Add("vulkan-1")
+		other_unit.settings.dll.libs:Add("vulkan-1")
 	end
 end
 
@@ -102,6 +109,11 @@ function Unit.Build(self)
 		PathJoin(self.path, "src/render_common.cpp"),
 		PathJoin(self.path, "src/render_null.cpp"),
 	}
+
+	if target.family == "windows" or target.platform == "linux" then
+		table.insert(graphics_src, PathJoin(self.path, "src/render_vulkan.cpp"))
+		self.settings.cc.includes:Add("C:\\VulkanSDK\\1.1.70.1\\Include")
+	end
 
 	if target.family == "windows" then
 		table.insert(graphics_src, PathJoin(self.path, "src/render_dx12.cpp"))
@@ -124,10 +136,21 @@ function Unit.Build(self)
 	self:AddProduct(texturec)
 	
 	local shaderc_settings = self.settings:Copy()
+	local shaderc_src = {
+		PathJoin(self.path, "src/shaderc.cpp"),
+	}
+
 	if target.family == "windows" then
 		shaderc_settings.link.libs:Add("d3dcompiler")
+		table.insert(shaderc_src, PathJoin(self.path, "src/shaderc_dx12.cpp"))
 	end
-	local shaderc_obj = Compile(shaderc_settings, PathJoin(self.path, "src/shaderc.cpp"), PathJoin(self.path, "src/shaderc_dx12.cpp"))
+
+	if target.family == "windows" or target.platform == "linux" then
+		shaderc_settings.link.libs:Add("shaderc_shared")
+		table.insert(shaderc_src, PathJoin(self.path, "src/shaderc_vulkan.cpp"))
+	end
+
+	local shaderc_obj = Compile(shaderc_settings, shaderc_src)
 	local shaderc = Link(shaderc_settings, "shaderc", shaderc_obj)
 	self:AddProduct(shaderc)
 
