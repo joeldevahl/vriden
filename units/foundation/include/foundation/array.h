@@ -15,11 +15,15 @@ struct array_t
 
 	void create(allocator_t* allocator, size_t capacity)
 	{
-		ASSERT(_ptr == NULL, "array was already created");
 		_capacity = capacity;
 		_length = 0;
-		if(capacity)
-			_ptr = (T*)ALLOCATOR_ALLOC(allocator, capacity * sizeof(T), ALIGNOF(T));
+		_ptr = capacity ? (T*)ALLOCATOR_ALLOC(allocator, capacity * sizeof(T), ALIGNOF(T)) : nullptr;
+	}
+
+	void create_with_length(allocator_t* allocator, size_t length)
+	{
+		create(allocator, length);
+		set_length(length);
 	}
 
 	void destroy(allocator_t* allocator)
@@ -184,10 +188,11 @@ struct scoped_array_t : public array_t<T>
 {
 	allocator_t* _allocator;
 
-	scoped_array_t(allocator_t* allocator, size_t capacity)
+	scoped_array_t(allocator_t* allocator, size_t size = 0)
 		: _allocator(allocator)
 	{
-		this->create(_allocator, capacity);
+		this->create(_allocator, size);
+		this->set_length(size);
 	}
 
 	~scoped_array_t()
@@ -197,11 +202,17 @@ struct scoped_array_t : public array_t<T>
 
 	void grow(size_t amount = 0)
 	{
-		grow(_allocator, amount);
+		this->grow(_allocator, amount);
 	}
-
+/*
 	void ensure_capacity(size_t new_capacity)
 	{
-		ensure_capacity(_allocator, new_capacity);
+		this->ensure_capacity(_allocator, new_capacity);
+	}
+*/	
+	void grow_and_append(const T& val)
+	{
+		this->ensure_capacity(_allocator, length() + 1);
+		this->append(val);
 	}
 };
