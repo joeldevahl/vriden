@@ -212,7 +212,7 @@ struct scoped_array_t : public array_t<T>
 */	
 	void grow_and_append(const T& val)
 	{
-		this->ensure_capacity(_allocator, length() + 1);
+		this->ensure_capacity(_allocator, this->length() + 1);
 		this->append(val);
 	}
 };
