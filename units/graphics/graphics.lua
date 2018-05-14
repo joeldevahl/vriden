@@ -120,7 +120,7 @@ function Unit.Build(self)
 	end
 
 	if target.platform == "osx" then
-		table.insert(graphics_src, PathJoin(self.path, "src/render_metal.cpp"))
+		table.insert(graphics_src, PathJoin(self.path, "src/render_metal.mm"))
 	end
 
 	local graphics_obj = Compile(self.settings, graphics_src)
