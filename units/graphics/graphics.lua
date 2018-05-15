@@ -20,7 +20,6 @@ function Unit.AddTools(self)
 				local exe = compiler.exe
 				local cmd = exe .. " -o " .. outfile .. " " .. infile
 
-				print(outfile)
 				AddJob(outfile, name .. " " .. infile, cmd)
 				AddDependency(outfile, exe)
 				AddDependency(outfile, infile)
