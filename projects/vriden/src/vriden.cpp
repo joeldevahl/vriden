@@ -157,7 +157,7 @@ int application_main(application_t* application)
 	vfs_sync_read(vfs, &allocator_malloc, "vriden_precache.txt", (void**)&precache_text, &precache_size);
 	precache_text[precache_size - 1] = '\0';
 
-	scoped_array_t<resource_handle_t> handles(&allocator_malloc, 128);
+	scoped_array_t<resource_handle_t> handles(&allocator_malloc);
 	char* precache_name = strtok(precache_text, "\r\n");
 	while (precache_name != nullptr)
 	{
@@ -199,14 +199,14 @@ int application_main(application_t* application)
 	resource_cache_result_t resource_res = resource_cache_get_by_name(resource_cache, "projects/vriden/data/meshes/plane_xy.mesh", &mesh_handle);
 	ASSERT(resource_res == RESOURCE_CACHE_RESULT_OK);
 	void* mesh_ptr;
-	resource_cache_handle_handle_to_pointer(resource_cache, mesh_handle, &mesh_ptr);
+	resource_cache_handle_to_pointer(resource_cache, mesh_handle, &mesh_ptr);
 	render_mesh_id_t mesh_id = (render_mesh_id_t)(uintptr_t)mesh_ptr;
 
 	resource_handle_t material_handle;
 	resource_res = resource_cache_get_by_name(resource_cache, "projects/vriden/data/materials/default.material", &material_handle);
 	ASSERT(resource_res == RESOURCE_CACHE_RESULT_OK);
 	void* material_ptr;
-	resource_cache_handle_handle_to_pointer(resource_cache, material_handle, &material_ptr);
+	resource_cache_handle_to_pointer(resource_cache, material_handle, &material_ptr);
 	render_material_id_t material_id = (render_material_id_t)(uintptr_t)material_ptr;
 
 	render_instance_id_t instance_id[MAX_ENTITIES];
@@ -260,6 +260,19 @@ int application_main(application_t* application)
 	render_wait_idle(render);
 	render_script_destroy(render, script_id);
 	render_view_destroy(render, view_id);
+
+	for (size_t i = 0; i < MAX_ENTITIES; ++i)
+	{
+		render_instance_destroy(render, instance_id[i]);
+	}
+
+	resource_cache_release_handle(resource_cache, mesh_handle);
+	resource_cache_release_handle(resource_cache, material_handle);
+	for (auto handle : handles)
+	{
+		resource_cache_release_handle(resource_cache, handle);
+	}
+
 	render_destroy(render);
 
 	resource_cache_destroy(resource_cache);

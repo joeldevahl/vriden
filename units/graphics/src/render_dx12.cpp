@@ -834,7 +834,7 @@ void render_dx12_material_destroy(render_dx12_t* render, render_material_id_t ma
 
 	for (int icb = 0; icb < SHADER_FREQUENCY_MAX; ++icb)
 	{
-		if (material->constant_buffers[icb] == nullptr)
+		if (material->constant_buffers[icb] != nullptr)
 		{
 			material->shader->constant_buffers[icb].pool.free_handle(material->constant_buffer_ids[icb]);
 			ALLOCATOR_FREE(render->allocator, material->constant_buffers[icb]);

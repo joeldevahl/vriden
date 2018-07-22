@@ -59,6 +59,6 @@ resource_cache_result_t resource_cache_get_by_hash(resource_cache_t* cache, uint
 
 resource_cache_result_t resource_cache_release_handle(resource_cache_t* cache, resource_handle_t handle);
 
-resource_cache_result_t resource_cache_handle_handle_to_pointer(resource_cache_t* cache, resource_handle_t handle, void** out_pointer);
+resource_cache_result_t resource_cache_handle_to_pointer(resource_cache_t* cache, resource_handle_t handle, void** out_pointer);
 
 resource_cache_result_t resource_cache_handles_to_pointers(resource_cache_t* cache, resource_handle_t* handles, size_t num_handles, void** out_pointers);

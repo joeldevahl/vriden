@@ -16,6 +16,11 @@ static const unsigned char material_typelib[] =
 #include <units/graphics/types/material.tlb.hex>
 };
 
+struct material_private_data_t
+{
+	resource_handle_t shader_handle;
+};
+
 static bool material_create(void* context, allocator_t* allocator, void* creation_data, size_t size, void** out_resource_data, void** out_private_data)
 {
 	resource_context_t* resource_context = (resource_context_t*)context;
@@ -37,11 +42,12 @@ static bool material_create(void* context, allocator_t* allocator, void* creatio
 		// resolve all property resources
 	}
 
-	resource_handle_t shader_handle;
-	resource_cache_result_t resource_res = resource_cache_get_by_hash(resource_context->resource_cache, material_data->shader_name_hash, &shader_handle);
+
+	material_private_data_t* private_data = ALLOCATOR_ALLOC_TYPE(allocator, material_private_data_t);
+	resource_cache_result_t resource_res = resource_cache_get_by_hash(resource_context->resource_cache, material_data->shader_name_hash, &private_data->shader_handle);
 	ASSERT(resource_res == RESOURCE_CACHE_RESULT_OK);
 	void* shader_ptr;
-	resource_cache_handle_handle_to_pointer(resource_context->resource_cache, shader_handle, &shader_ptr);
+	resource_cache_handle_to_pointer(resource_context->resource_cache, private_data->shader_handle, &shader_ptr);
 	render_shader_id_t shader_id = (render_shader_id_t)(uintptr_t)shader_ptr;
 
 	// TODO: ugly hack to switch hash to ID. have to be done inside render later
@@ -52,7 +58,8 @@ static bool material_create(void* context, allocator_t* allocator, void* creatio
 	ASSERT(res == RENDER_RESULT_OK);
 
 	*out_resource_data = (void*)(uintptr_t)material_id;
-	// TODO: write internal data
+	*out_private_data = (void*)(uintptr_t)private_data;
+
 	return true;
 }
 
@@ -68,6 +75,9 @@ static void material_destroy(void* context, allocator_t* allocator, void* resour
 	render_material_id_t material_id = (render_material_id_t)(uintptr_t)resource_data;
 
 	render_material_destroy(render, material_id);
+
+	resource_cache_release_handle(resource_context->resource_cache, reinterpret_cast<material_private_data_t*>(private_data)->shader_handle);
+	ALLOCATOR_FREE(allocator, private_data);
 }
 
 void material_register_creator(resource_context_t* resource_context)

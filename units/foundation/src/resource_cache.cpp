@@ -180,7 +180,7 @@ resource_cache_result_t resource_cache_release_handle(resource_cache_t* cache, r
 	return RESOURCE_CACHE_RESULT_OK;
 }
 
-resource_cache_result_t resource_cache_handle_handle_to_pointer(resource_cache_t* cache, resource_handle_t handle, void** out_pointer)
+resource_cache_result_t resource_cache_handle_to_pointer(resource_cache_t* cache, resource_handle_t handle, void** out_pointer)
 {
 	resource_t* resource = *cache->handle_pool.handle_to_pointer(handle);
 	*out_pointer = resource->resource_data;
