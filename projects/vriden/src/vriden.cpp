@@ -12,6 +12,8 @@
 
 #include <dl/dl.h>
 
+#include <getopt/getopt.h>
+
 #include <glm/glm.hpp>
 #include <glm/gtx/transform.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -23,6 +25,16 @@
 
 #define DATA_PATH "local/build/" PLATFORM_STRING "/"
 #define MAX_ENTITIES 10000
+
+#define ERROR_AND_QUIT(fmt, ...) { fprintf(stderr, "Error: " fmt "\n", ##__VA_ARGS__); return 0x0; }
+#define ERROR_AND_FAIL(fmt, ...) { fprintf(stderr, "Error: " fmt "\n", ##__VA_ARGS__); return 1; }
+
+void print_help(getopt_context_t* ctx)
+{
+	char buffer[2048];
+	printf("usage: shaderc [options] file\n\n");
+	printf("%s", getopt_create_help_string(ctx, buffer, sizeof(buffer)));
+}
 
 struct dummy_job_params_t
 {
@@ -36,11 +48,47 @@ void material_register_creator(resource_context_t* resource_context);
 
 int application_main(application_t* application)
 {
+#if defined(FAMILY_WINDOWS)
+	int render_backend = RENDER_BACKEND_DX12;
+#elif defined(PLATFORM_OSX)
+	int render_backend = RENDER_BACKEND_METAL;
+#else
+#error not implemented for this platform
+#endif
+
+	static const getopt_option_t option_list[] =
+	{
+		{ "help", 'h', GETOPT_OPTION_TYPE_NO_ARG, 0x0, 'h', "displays this message", 0x0 },
+		{ "render-backend-null", 0, GETOPT_OPTION_TYPE_FLAG_SET, &render_backend, RENDER_BACKEND_NULL, "set render backend to null",  0x0 },
+#if defined(FAMILY_WINDOWS)
+		{ "render-backend-dx12", 0, GETOPT_OPTION_TYPE_FLAG_SET, &render_backend, RENDER_BACKEND_DX12, "set render backend to dx12",  0x0 },
+		{ "render-backend-vulkan", 0, GETOPT_OPTION_TYPE_FLAG_SET, &render_backend, RENDER_BACKEND_VULKAN, "set render backend to vulkan",  0x0 },
+#endif
+#if defined(PLATFORM_OSX)
+		{ "render-backend-metal", 0, GETOPT_OPTION_TYPE_FLAG_SET, &render_backend, RENDER_BACKEND_METAL, "set render backend to metal",  0x0 },
+#endif
+		GETOPT_OPTIONS_END
+	};
+
+	getopt_context_t go_ctx;
+	getopt_create_context(&go_ctx, application_get_argc(application), application_get_argv(application), option_list);
+
+	int opt;
+	while( (opt = getopt_next( &go_ctx ) ) != -1 )
+	{
+		switch(opt)
+		{
+			case 'h': print_help(&go_ctx); return 0;
+			case 0: break; // ignore, flag was set!
+		}
+	}
+
 	resource_context_t resource_context = {};
 	resource_context.application = application;
 
 	window_create_params_t window_create_params;
 	window_create_params.allocator = &allocator_malloc;
+	window_create_params.application = application;
 	window_create_params.width = 1280;
 	window_create_params.height = 720;
 	window_create_params.name = "vriden";
@@ -92,7 +140,7 @@ int application_main(application_t* application)
 	render_create_info_t render_create_info;
 	render_create_info.allocator = &allocator_malloc;
 	render_create_info.window = window_get_platform_handle(window);
-	render_create_info.preferred_backend = RENDER_BACKEND_VULKAN;
+	render_create_info.preferred_backend = (render_backend_t)render_backend;
 	render_create_info.max_textures = 1;
 	render_create_info.max_shaders = 1;
 	render_create_info.max_materials = 1;
