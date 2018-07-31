@@ -94,6 +94,9 @@ function Unit.Patch(self, other_unit)
 		other_unit.settings.dll.libpath:Add("C:\\VulkanSDK\\1.1.70.1\\lib")
 		other_unit.settings.link.libs:Add("vulkan-1")
 		other_unit.settings.dll.libs:Add("vulkan-1")
+	elseif target.platform == "osx" then
+		other_unit.settings.link.frameworks:Add("Metal")
+		other_unit.settings.dll.frameworks:Add("Metal")
 	end
 end
 

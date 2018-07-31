@@ -10,12 +10,24 @@ render_result_t render_metal_create(const render_create_info_t* create_info, ren
 	render->allocator = create_info->allocator;
 	render->backend = RENDER_BACKEND_METAL;
 
+	render->window = (NSWindow*)create_info->window;
+	render->view = [render->window contentView];
+	render->layer = (CAMetalLayer*)[render->view layer];
+
+	render->device = MTLCreateSystemDefaultDevice();
+	render->layer.device = render->device;
+	render->layer.pixelFormat = MTLPixelFormatBGRA8Unorm;
+	render->layer.allowsNextDrawableTimeout = NO;
+	render->command_queue = [render->device newCommandQueue];
+
 	*out_render = render;
 	return RENDER_RESULT_OK;
 }
 
 void render_metal_destroy(render_metal_t* render)
 {
+	[render->command_queue release];
+	[render->device release];
 	ALLOCATOR_DELETE(render->allocator, render_metal_t, render);
 }
 
@@ -91,8 +103,26 @@ render_result_t render_metal_instance_set_data(render_metal_t* /*render*/, size_
 	return RENDER_RESULT_OK;
 }
 
-void render_metal_kick_render(render_metal_t* /*render*/, render_view_id_t /*view_id*/, render_script_id_t /*script_id*/)
+void render_metal_kick_render(render_metal_t* render, render_view_id_t /*view_id*/, render_script_id_t /*script_id*/)
 {
+	@autoreleasepool
+	{
+		id<CAMetalDrawable> drawable = [render->layer nextDrawable];
+
+		id<MTLCommandBuffer> command_buffer = [render->command_queue commandBuffer];
+
+		MTLRenderPassDescriptor* render_pass = [MTLRenderPassDescriptor renderPassDescriptor];
+		render_pass.colorAttachments[0].texture = drawable.texture;
+		render_pass.colorAttachments[0].loadAction = MTLLoadActionClear;
+		render_pass.colorAttachments[0].storeAction = MTLStoreActionStore;
+		render_pass.colorAttachments[0].clearColor = MTLClearColorMake(0.3f, 0.3f, 0.6f, 1.0f);
+
+		id <MTLRenderCommandEncoder> command_encoder = [command_buffer renderCommandEncoderWithDescriptor: render_pass];
+		[command_encoder endEncoding];
+
+		[command_buffer presentDrawable:drawable];
+		[command_buffer commit];
+	}
 }
 
 void render_metal_kick_upload(render_metal_t* /*render*/)
