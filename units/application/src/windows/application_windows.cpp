@@ -9,7 +9,7 @@ struct application_t
 {
 	allocator_t* allocator;
 	int argc;
-	char** argv;
+	const char** argv;
 
 	bool running;
 };
@@ -47,7 +47,7 @@ int application_get_argc(application_t* app)
 	return app->argc;
 }
 
-char** application_get_argv(application_t* app)
+const char** application_get_argv(application_t* app)
 {
 	return app->argv;
 }

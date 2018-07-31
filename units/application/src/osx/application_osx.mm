@@ -22,7 +22,7 @@ struct application_t
 {
 	allocator_t* allocator;
 	int argc;
-	char** argv;
+	const char** argv;
 	NSAutoreleasePool* pool;
 };
 
@@ -37,9 +37,7 @@ application_t* application_create(application_create_params_t* params)
 	application->pool = [[NSAutoreleasePool alloc] init];
 
 	[AtecApplication sharedApplication];
-#ifndef ARCH_PPC_32
 	[NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
-#endif //#ifdef ARCH_PPC_32
 
 	id menubar = [[NSMenu new] autorelease];
     id appMenuItem = [[NSMenuItem new] autorelease];
@@ -89,7 +87,7 @@ int application_get_argc(application_t* app)
 	return app->argc;
 }
 
-char** application_get_argv(application_t* app)
+const char** application_get_argv(application_t* app)
 {
 	return app->argv;
 }

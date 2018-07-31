@@ -1,7 +1,11 @@
 #import <Cocoa/Cocoa.h>
+#import <QuartzCore/QuartzCore.h>
 
 #include <foundation/allocator.h>
+#include <application/application.h>
 #include <application/window.h>
+
+#define METALVIEW_TAG 255
 
 @interface WindowDelegate : NSObject
 @end
@@ -9,24 +13,53 @@
 @implementation WindowDelegate
 @end
 
-@interface ContentView : NSView
+
+@interface ContentView : NSView {
+	NSInteger _tag;
+}
+
+- (instancetype)initWithFrame:(NSRect)frame scale:(CGFloat)scale;
+
+@property (assign, readonly) NSInteger tag;
+
 @end
 
 @implementation ContentView
 
-- (BOOL)isOpaque
+@synthesize tag = _tag;
+
++ (Class)layerClass
 {
-    return YES;
+	return NSClassFromString(@"CAMetalLayer");
 }
 
-- (BOOL)canBecomeKeyView
+- (BOOL)wantsUpdateLayer
 {
-    return YES;
+	return YES;
 }
 
-- (BOOL)acceptsFirstResponder
+- (CALayer*)makeBackingLayer
 {
-    return YES;
+	return [self.class.layerClass layer];
+}
+
+- (instancetype)initWithFrame:(NSRect)frame scale:(CGFloat)scale
+{
+	if ((self = [super initWithFrame:frame]))
+	{
+		_tag = METALVIEW_TAG;
+		self.wantsLayer = YES;
+
+		self.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+		self.layer.contentsScale = scale;
+	}
+
+	return self;
+}
+
+- (void)resizeWithOldSuperviewSize:(NSSize)oldSize
+{
+	[super resizeWithOldSuperviewSize:oldSize];
 }
 
 @end
@@ -35,7 +68,8 @@ struct window_t
 {
 	allocator_t* allocator;
 	id delegate_id;
-	id window_id;
+	NSWindow* window_id;
+	NSView* view_id;
 };
 
 window_t* window_create(window_create_params_t* params)
@@ -50,10 +84,18 @@ window_t* window_create(window_create_params_t* params)
 	unsigned int window_style_mask = 0; // TODO(joel): masks where deprecated?
 	window->window_id = [[NSWindow alloc]
 		initWithContentRect:NSMakeRect(0, 0, 1280, 720)
-				  styleMask:window_style_mask
-					backing:NSBackingStoreBuffered
-					  defer:NO];
-    [window->window_id setContentView:[[ContentView alloc] init]];
+		styleMask:window_style_mask
+		backing:NSBackingStoreBuffered
+		defer:NO];
+
+	CGFloat scale = 1.0f;
+	if ([window->window_id.screen respondsToSelector:@selector(backingScaleFactor)])
+		scale = window->window_id.screen.backingScaleFactor;
+	
+	window->view_id = [[ContentView alloc] initWithFrame: window->window_id.frame scale:scale];
+	[window->view_id setAutoresizingMask:(NSViewWidthSizable | NSViewHeightSizable)];
+	[window->view_id setNeedsDisplay:YES];
+	[window->window_id setContentView:window->view_id];
 	[window->window_id setDelegate:window->delegate_id];
 	[window->window_id setAcceptsMouseMovedEvents:YES];
 	[window->window_id center];

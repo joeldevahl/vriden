@@ -5,6 +5,7 @@
 struct window_create_params_t
 {
 	struct allocator_t* allocator;
+	struct application_t* application;
 	uint32_t width;
 	uint32_t height;
 	const char* name;

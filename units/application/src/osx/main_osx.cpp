@@ -3,7 +3,7 @@
 
 int application_main(application_t* application);
 
-int main(int argc, char **argv)
+int main(int argc, const char **argv)
 {
 	application_create_params_t params;
 	application_t* application;

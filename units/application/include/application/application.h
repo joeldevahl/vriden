@@ -4,7 +4,7 @@ struct application_create_params_t
 {
 	struct allocator_t* allocator;
 	int argc;
-	char** argv;
+	const char** argv;
 };
 
 struct application_t;
@@ -15,5 +15,5 @@ void application_destroy(application_t* app);
 void application_update(application_t* app);
 
 int application_get_argc(application_t* app);
-char** application_get_argv(application_t* app);
+const char** application_get_argv(application_t* app);
 bool application_is_running(application_t* app);
