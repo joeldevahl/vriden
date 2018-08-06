@@ -22,7 +22,7 @@ int APIENTRY WinMain(HINSTANCE _In_ hInstance, HINSTANCE _In_opt_ hPrevInstance,
 	int argc = 1;
 	argv[0] = "appname.exe"; // TODO: get from hInstance?
 
-	const char* iter = lpCmdLine;
+	char* iter = lpCmdLine;
 	while(*iter)
 	{
 		ASSERT(argc < MAX_ARGS);
