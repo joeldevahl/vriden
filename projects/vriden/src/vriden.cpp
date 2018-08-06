@@ -160,20 +160,35 @@ int application_main(application_t* application)
 	render_res = render_view_create(render, &view_create_info, &view_id);
 	ASSERT(render_res == RENDER_RESULT_OK, "failed create view");
 
-	render_target_t targets[] =
+	render_target_t transient_targets[] =
 	{
-		{ 0, 0, 0, "depth buffer" },
+		{
+			"depth buffer",
+			RENDER_TARGET_SIZE_MODE_BACKBUFFER_RELATIVE,
+			1.0f, 1.0f,
+			0, // TODO: format?
+		},
 	};
 
 	render_attachment_t color_attachments[] =
 	{
-		{ "back buffer" },
+		{
+			"back buffer",
+			RENDER_LOAD_OP_CLEAR,
+			RENDER_STORE_OP_STORE,
+			{ 0.3f, 0.3f, 0.6f, 1.0f },
+		},
 	};
 
 	render_attachment_t depth_attachment =
 	{
 		"depth buffer",
+		RENDER_LOAD_OP_CLEAR,
+		RENDER_STORE_OP_STORE,
+		// initialize depth/stencil below
 	};
+	depth_attachment.clear_value.depth_stencil.depth = 1.0f;
+	depth_attachment.clear_value.depth_stencil.stencil = 0;
 
 	render_command_t commands[1];
 	commands[0].type = RENDER_COMMAND_DRAW;
@@ -181,14 +196,12 @@ int application_main(application_t* application)
 
 	render_pass_t passes[] =
 	{
-		{ 0, nullptr, &depth_attachment, ARRAY_LENGTH(commands), commands },
 		{ ARRAY_LENGTH(color_attachments), color_attachments, &depth_attachment, ARRAY_LENGTH(commands), commands },
-		{ ARRAY_LENGTH(color_attachments), color_attachments, nullptr, ARRAY_LENGTH(commands), commands },
 	};
 
 	render_script_create_info_t script_create_info;
-	script_create_info.num_transient_targets = ARRAY_LENGTH(targets);
-	script_create_info.transient_targets = targets;
+	script_create_info.num_transient_targets = ARRAY_LENGTH(transient_targets);
+	script_create_info.transient_targets = transient_targets;
 	script_create_info.num_passes = ARRAY_LENGTH(passes);
 	script_create_info.passes = passes;
 	render_script_id_t script_id;

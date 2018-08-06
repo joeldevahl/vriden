@@ -41,6 +41,32 @@ typedef enum render_backend_t
 	RENDER_BACKEND_METAL,
 } render_backend_t;
 
+typedef enum render_format_t
+{
+	RENDER_FORMAT_
+} render_format_t;
+
+typedef enum render_target_size_mode_t {
+    RENDER_TARGET_SIZE_MODE_BACKBUFFER_RELATIVE = 0,
+    RENDER_TARGET_SIZE_MODE_ABSOLUTE,
+} render_target_size_mode_t;
+
+typedef enum render_load_op_t {
+    RENDER_LOAD_OP_LOAD = 0,
+    RENDER_LOAD_OP_CLEAR,
+    RENDER_LOAD_OP_DONT_CARE,
+} render_load_op_t;
+
+typedef enum render_store_op_t {
+    RENDER_STORE_OP_STORE = 0,
+    RENDER_STORE_OP_DONT_CARE,
+} render_store_op_t;
+
+typedef enum render_command_type_t
+{
+	RENDER_COMMAND_DRAW = 0,
+} render_command_type_t;
+
 /******************************************************************************\
 *
 *  Internal types
@@ -89,22 +115,36 @@ typedef struct render_view_create_info_t
 
 typedef struct render_target_t
 {
-	uint16_t width;
-	uint16_t height;
-	uint32_t format; // TODO: enum
 	const char* name;
+	render_target_size_mode_t size_mode;
+	float width;
+	float height;
+	uint32_t format; // TODO: enum
 } render_target_t;
+
+typedef union render_clear_color_value_t {
+    float float32[4];
+    int32_t int32[4];
+    uint32_t uint32[4];
+} render_clear_color_value_t;
+
+typedef struct render_clear_depth_stencil_value_t {
+    float depth;
+    uint32_t stencil;
+} render_clear_depth_stencil_value_t;
+
+typedef union render_clear_value_t {
+    render_clear_color_value_t color;
+    render_clear_depth_stencil_value_t depth_stencil;
+} render_clear_value_t;
 
 typedef struct render_attachment_t
 {
-	const char* name;
-	// TODO: load/store info
+	const char* name; // TODO: better identification? render to persistent texture?
+    render_load_op_t  load_op;
+    render_store_op_t store_op;
+	render_clear_value_t clear_value;
 } render_attachment_t;
-
-typedef enum render_command_type_t
-{
-	RENDER_COMMAND_DRAW = 0,
-} render_command_type_t;
 
 typedef struct render_command_t
 {
@@ -133,6 +173,7 @@ typedef struct render_script_create_info_t
 	size_t num_transient_targets;
 	render_target_t* transient_targets;
 
+	// TODO: graph instead of linear array of passes?
 	size_t num_passes;
 	render_pass_t* passes;
 } render_script_create_info_t;

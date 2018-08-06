@@ -430,6 +430,14 @@ static size_t render_dx12_lookup_attachment(render_dx12_t* /*render*/, size_t nu
 	return UINT32_MAX;
 }
 
+static UINT64 render_dx12_calc_resource_size(render_target_size_mode_t size_mode, float size, UINT64 base)
+{
+	if (size_mode == RENDER_TARGET_SIZE_MODE_BACKBUFFER_RELATIVE)
+		return static_cast<UINT64>(size * base);
+	else
+		return static_cast<UINT64>(size);
+}
+
 render_result_t render_dx12_script_create(render_dx12_t* render, const render_script_create_info_t* create_info, render_script_id_t* out_script_id)
 {
 	ASSERT(render->scripts.num_free() != 0);
@@ -458,8 +466,8 @@ render_result_t render_dx12_script_create(render_dx12_t* render, const render_sc
 		{
 			D3D12_RESOURCE_DIMENSION_TEXTURE2D,
 			0,
-			src_target->width ? src_target->width : render->width,
-			src_target->height ? src_target->height : render->height,
+			render_dx12_calc_resource_size(src_target->size_mode, src_target->width, render->width),
+			(UINT)render_dx12_calc_resource_size(src_target->size_mode, src_target->height, render->height),
 			1,
 			1,
 			DXGI_FORMAT_D32_FLOAT_S8X24_UINT, // TODO:
