@@ -1,8 +1,10 @@
 #include "render_dx12.h"
 
 #include <foundation/hash.h>
+#include <foundation/file.h>
 
 #include <algorithm>
+#include <dxcapi.h>
 
 #define SAFE_RELEASE(x) if(x) (x)->Release()
 
@@ -12,7 +14,7 @@ static const T& render_dx12_max(const T& l, const T& r)
 	return l < r ? r : l;
 }
 
-static ID3D12Resource* render_dx12_create_buffer(render_dx12_t* render, size_t num_bytes, D3D12_HEAP_TYPE heap_type, D3D12_RESOURCE_STATES initial_state)
+static ID3D12Resource* render_dx12_create_buffer(render_dx12_t* render, size_t num_bytes, D3D12_HEAP_TYPE heap_type, D3D12_RESOURCE_STATES initial_state, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE)
 {
 	D3D12_HEAP_PROPERTIES heap_prop =
 	{
@@ -35,7 +37,7 @@ static ID3D12Resource* render_dx12_create_buffer(render_dx12_t* render, size_t n
 		1,
 		0,
 		D3D12_TEXTURE_LAYOUT_ROW_MAJOR,
-		D3D12_RESOURCE_FLAG_NONE,
+		flags,
 	};
 
 	ID3D12Resource* resource = nullptr;
@@ -76,6 +78,33 @@ static void render_dx12_push_pending_upload(render_dx12_t* render, ID3D12Resourc
 	render->pending_uploads.append(upload);
 }
 
+static void render_dx12_push_delay_delete(render_dx12_t* render, IUnknown* resource)
+{
+	render_dx12_t::frame_data_t& frame = render_dx12_curr_frame(render);
+	frame.delay_delete_queue.ensure_capacity(render->allocator, frame.delay_delete_queue.length() + 1);
+	frame.delay_delete_queue.append(resource);
+}
+
+static WRAPPED_GPU_POINTER CreateFallbackWrappedPointer(render_dx12_t* render, ID3D12Resource* resource, UINT bufferNumElements)
+{
+	D3D12_UNORDERED_ACCESS_VIEW_DESC rawBufferUavDesc = {};
+	rawBufferUavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+	rawBufferUavDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_RAW;
+	rawBufferUavDesc.Format = DXGI_FORMAT_R32_TYPELESS;
+	rawBufferUavDesc.Buffer.NumElements = bufferNumElements;
+
+	// Only compute fallback requires a valid descriptor index when creating a wrapped pointer.
+	UINT descriptorHeapIndex = 0;
+	if (!render->dxr_device->UsingRaytracingDriver())
+	{
+		descriptorHeapIndex = render->cbv_srv_uav_pool.alloc(1); // TODO we need to free, but not for now...
+		//D3D12_CPU_DESCRIPTOR_HANDLE bottomLevelDescriptor = {};
+
+		//render->device->CreateUnorderedAccessView(resource, nullptr, &rawBufferUavDesc, bottomLevelDescriptor);
+	}
+	return render->dxr_device->GetWrappedPointerSimple(descriptorHeapIndex, resource->GetGPUVirtualAddress());
+}
+
 render_result_t render_dx12_create(const render_create_info_t* create_info, render_dx12_t** out_render)
 {
 	render_dx12_t* render = ALLOCATOR_NEW(create_info->allocator, render_dx12_t);
@@ -94,15 +123,36 @@ render_result_t render_dx12_create(const render_create_info_t* create_info, rend
 	HRESULT hr = CreateDXGIFactory1(IID_PPV_ARGS(&render->dxgi_factory));
 	ASSERT(SUCCEEDED(hr), "failed to create dxgi factory");
 
-	IDXGIAdapter* adapter = nullptr;
 	//hr = render->dxgi_factory->EnumWarpAdapter(IID_PPV_ARGS(&adapter));
 	//ASSERT(SUCCEEDED(hr), "failed to get warp adapter");
 
-	hr = D3D12CreateDevice(
-		adapter,
-		D3D_FEATURE_LEVEL_11_0,
-		IID_PPV_ARGS(&render->device));
-	ASSERT(SUCCEEDED(hr), "failed to create device");
+	IDXGIAdapter1* adapter = nullptr;
+    for (UINT adapter_id = 0; DXGI_ERROR_NOT_FOUND != render->dxgi_factory->EnumAdapters1(adapter_id, &adapter); ++adapter_id)
+    {
+        DXGI_ADAPTER_DESC1 desc;
+        hr = adapter->GetDesc1(&desc);
+		ASSERT(SUCCEEDED(hr), "failed to enumerate adapter");
+
+        if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
+            continue;
+
+		UUID experimental_features[] = { D3D12ExperimentalShaderModels /*, D3D12RaytracingPrototype*/ };
+		hr = D3D12EnableExperimentalFeatures(ARRAY_LENGTH(experimental_features), experimental_features, NULL, NULL);
+		ASSERT(SUCCEEDED(hr));
+
+		hr = D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_12_0, IID_PPV_ARGS(&render->device));
+		ASSERT(SUCCEEDED(hr));
+
+		//hr = render->device->QueryInterface(IID_PPV_ARGS(&render->dxr_device));
+		//ASSERT(SUCCEEDED(hr)); // TODO: don't assert, set caps
+
+		hr = D3D12CreateRaytracingFallbackDevice(render->device, CreateRaytracingFallbackDeviceFlags::None, 0, IID_PPV_ARGS(&render->dxr_device));
+		ASSERT(SUCCEEDED(hr));
+
+		if(render->device)
+            break;
+	}
+	ASSERT(render->device != nullptr);
 
 	D3D12_COMMAND_QUEUE_DESC queue_desc =
 	{
@@ -137,6 +187,9 @@ render_result_t render_dx12_create(const render_create_info_t* create_info, rend
 		hr = render->device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, frame.allocator, nullptr, IID_PPV_ARGS(&frame.command_list));
 		ASSERT(SUCCEEDED(hr), "failed to create graphics command list");
 		frame.command_list->Close();
+		//hr = frame.command_list->QueryInterface(IID_PPV_ARGS(&frame.dxr_command_list));
+		//ASSERT(SUCCEEDED(hr), "failed to get raytracing command list");
+		render->dxr_device->QueryRaytracingCommandList(frame.command_list, IID_PPV_ARGS(&frame.dxr_command_list));
 
 		frame.delay_delete_queue.create(render->allocator, 8);
 		frame.upload_fence_mark = 0;
@@ -226,14 +279,16 @@ render_result_t render_dx12_create(const render_create_info_t* create_info, rend
 		hr = render->swapchain->GetBuffer(i, IID_PPV_ARGS(&backbuffer.resource));
 		ASSERT(SUCCEEDED(hr), "failed to get back buffer %d", i);
 
-		const char backbuffer_name[] = "back buffer";
-		backbuffer.resource->SetPrivateData(WKPDID_D3DDebugObjectName, sizeof(backbuffer_name) - 1, backbuffer_name);
+		LPCWSTR backbuffer_name = L"back buffer";
+		hr = backbuffer.resource->SetName(backbuffer_name);
 		ASSERT(SUCCEEDED(hr), "failed to set back buffer name");
 	}
 
 	size_t upload_buffer_size = 16 * 1024 * 1024;
 	render->upload_resource = render_dx12_create_buffer(render, upload_buffer_size, D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_STATE_GENERIC_READ);
+	render->upload_resource->SetName(L"upload");
 	render->copy_upload_resource = render_dx12_create_buffer(render, upload_buffer_size, D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_STATE_GENERIC_READ);
+	render->copy_upload_resource->SetName(L"copy upload");
 
 	D3D12_RANGE upload_range = { 0, upload_buffer_size };
 	hr = render->upload_resource->Map(0, &upload_range, (void**)&render->upload_buffer);
@@ -245,7 +300,9 @@ render_result_t render_dx12_create(const render_create_info_t* create_info, rend
 	render->copy_upload_ring.create(upload_buffer_size);
 
 	render->argument_buffer = render_dx12_create_buffer(render, create_info->max_instances * sizeof(render_dx12_indirect_argument_t), D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
+	render->argument_buffer->SetName(L"argument buffer");
 	render->instance_buffer = render_dx12_create_buffer(render, create_info->max_instances * 16 * sizeof(float), D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+	render->instance_buffer->SetName(L"instance buffer");
 
 	D3D12_ROOT_PARAMETER1 root_parameters[3];
 
@@ -286,7 +343,7 @@ render_result_t render_dx12_create(const render_create_info_t* create_info, rend
 		&versioned_desc,
 		&out_blob,
 		&error_blob);
-	const char* error_msg;
+	const char* error_msg = nullptr;
 	if (error_blob)
 		error_msg = (const char*)error_blob->GetBufferPointer();
 	ASSERT(SUCCEEDED(hr), "failed to serialized root signature:\n%s", error_msg);
@@ -318,6 +375,9 @@ render_result_t render_dx12_create(const render_create_info_t* create_info, rend
 	};
 	hr = render->device->CreateCommandSignature(&draw_indirect_desc, render->root_signature, IID_PPV_ARGS(&render->command_signature));
 	ASSERT(SUCCEEDED(hr), "failed to create draw indirect command signature");
+
+	render->dxr_bottom_level_as = nullptr;
+	render->dxr_top_level_as = nullptr;
 	
 	*out_render = render;
 	return RENDER_RESULT_OK;
@@ -396,6 +456,7 @@ render_result_t render_dx12_view_create(render_dx12_t* render, const render_view
 	render_dx12_view_t* view = render->views.alloc();
 
 	view->constant_buffer = render_dx12_create_buffer(render, ALIGN_UP(sizeof(render_view_data_t), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT), D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+	view->constant_buffer->SetName(L"view constant buffer");
 	view->data = create_info->initial_data;
 
 	*out_view_id = render->views.pointer_to_handle(view);
@@ -428,6 +489,28 @@ static size_t render_dx12_lookup_attachment(render_dx12_t* /*render*/, size_t nu
 	}
 
 	return UINT32_MAX;
+}
+
+static DXGI_FORMAT render_dx12_convert_format(render_format_t format)
+{
+	switch (format)
+	{
+	case RENDER_FORMAT_NONE:
+		return DXGI_FORMAT_UNKNOWN;
+	case RENDER_FORMAT_R8G8B8A8_UNORM:
+		return DXGI_FORMAT_B8G8R8A8_UNORM;
+	case RENDER_FORMAT_R8G8B8A8_SRGB:
+		return DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
+	case RENDER_FORMAT_D32_FLOAT_S8X24_UINT:
+		return DXGI_FORMAT_D32_FLOAT_S8X24_UINT;
+	default:
+		return DXGI_FORMAT_UNKNOWN;
+	}
+}
+
+static bool render_is_depth_stencil_format(render_format_t format)
+{
+	return format == RENDER_FORMAT_D32_FLOAT_S8X24_UINT;
 }
 
 static UINT64 render_dx12_calc_resource_size(render_target_size_mode_t size_mode, float size, UINT64 base)
@@ -470,15 +553,23 @@ render_result_t render_dx12_script_create(render_dx12_t* render, const render_sc
 			(UINT)render_dx12_calc_resource_size(src_target->size_mode, src_target->height, render->height),
 			1,
 			1,
-			DXGI_FORMAT_D32_FLOAT_S8X24_UINT, // TODO:
+			render_dx12_convert_format(src_target->format),
 			{ 1, 0 },
 			D3D12_TEXTURE_LAYOUT_UNKNOWN,
-			D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL | D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE,
+			D3D12_RESOURCE_FLAG_NONE,
 		};
 
 		dst_target->clear_value.Format = desc.Format;
-		dst_target->clear_value.DepthStencil.Depth = 1.0f;
-		dst_target->clear_value.DepthStencil.Stencil= 0;
+		if (render_is_depth_stencil_format(src_target->format))
+		{
+			dst_target->clear_value.DepthStencil.Depth = src_target->clear_value.depth_stencil.depth;
+			dst_target->clear_value.DepthStencil.Stencil = src_target->clear_value.depth_stencil.stencil;
+			desc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+		}
+		else
+		{
+			memcpy(dst_target->clear_value.Color, src_target->clear_value.color.float32, sizeof(dst_target->clear_value.Color));
+		}
 
 		HRESULT hr = render->device->CreateCommittedResource(
 			&heap_prop,
@@ -657,16 +748,17 @@ render_result_t render_dx12_shader_create(render_dx12_t* render, const shader_da
 	for (int i = 0; i < SHADER_FREQUENCY_MAX; ++i)
 	{
 		size_t stride = data->constant_buffers[i].data.count;
-		shader->constant_buffers[i].stride = stride;
-		shader->constant_buffers[i].default_data = ALLOCATOR_ALLOC_ARRAY(render->allocator, stride, uint8_t);
-		memcpy(shader->constant_buffers[i].default_data, data->constant_buffers[i].data.data, stride);
-
-		size_t capacity = 1024;
-		size_t buffer_size = capacity * stride;
-		if (buffer_size > 0)
+		if (stride > 0)
 		{
+			size_t capacity = 1024;
+			size_t buffer_size = capacity * stride;
+
+			shader->constant_buffers[i].stride = stride;
+			shader->constant_buffers[i].default_data = ALLOCATOR_ALLOC_ARRAY(render->allocator, stride, uint8_t);
+			memcpy(shader->constant_buffers[i].default_data, data->constant_buffers[i].data.data, stride);
 			shader->constant_buffers[i].pool.create(render->allocator, capacity);
 			shader->constant_buffers[i].pool_buffer = render_dx12_create_buffer(render, buffer_size, D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_COMMON);
+			shader->constant_buffers[i].pool_buffer->SetName(L"pool buffer");
 		}
 	}
 
@@ -780,9 +872,12 @@ void render_dx12_shader_destroy(render_dx12_t* render, render_shader_id_t shader
 	ALLOCATOR_FREE(render->allocator, shader->properties);
 	for (int i = 0; i < SHADER_FREQUENCY_MAX; ++i)
 	{
-		ALLOCATOR_FREE(render->allocator, shader->constant_buffers[i].default_data);
-		shader->constant_buffers[i].pool_buffer->Release();
-		shader->constant_buffers[i].pool.destroy(render->allocator);
+		if (shader->constant_buffers[i].stride != 0)
+		{
+			ALLOCATOR_FREE(render->allocator, shader->constant_buffers[i].default_data);
+			shader->constant_buffers[i].pool_buffer->Release();
+			shader->constant_buffers[i].pool.destroy(render->allocator);
+		}
 	}
 
 	render->shaders.free_handle(shader_id);
@@ -859,7 +954,9 @@ render_result_t render_dx12_mesh_create(render_dx12_t* render, const mesh_data_t
 	render_dx12_mesh_t* mesh = render->meshes.alloc();
 
 	mesh->ib = render_dx12_create_buffer(render, mesh_data->index_data.data.count, D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_COMMON);
+	mesh->ib->SetName(L"ib");
 	mesh->vb = render_dx12_create_buffer(render, mesh_data->vertex_data.data.count, D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_COMMON);
+	mesh->vb->SetName(L"vb");
 
 	size_t vb_upload_offset = render->copy_upload_ring.get(mesh_data->vertex_data.data.count);
 	size_t ib_upload_offset = render->copy_upload_ring.get(mesh_data->index_data.data.count);
@@ -885,6 +982,9 @@ render_result_t render_dx12_mesh_create(render_dx12_t* render, const mesh_data_t
 	mesh->upload_fence = render->copy_frame_no;
 	render_dx12_push_pending_upload(render, mesh->vb, D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
 	render_dx12_push_pending_upload(render, mesh->ib, D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_INDEX_BUFFER);
+
+	//mesh->dxr_vb = CreateFallbackWrappedPointer(render, mesh->vb, mesh->vb_view.SizeInBytes / mesh->vb_view.StrideInBytes);
+	//mesh->dxr_ib = CreateFallbackWrappedPointer(render, mesh->ib, mesh->ib_view.SizeInBytes / mesh->ib_view.StrideInBytes);
 
 	*out_mesh_id = render->meshes.pointer_to_handle(mesh);
 	return RENDER_RESULT_OK;
@@ -928,7 +1028,7 @@ render_result_t render_dx12_instance_set_data(render_dx12_t* render, size_t num_
 	return RENDER_RESULT_OK;
 }
 
-static void render_dx12_push_barrier(render_dx12_t* render, array_t<D3D12_RESOURCE_BARRIER>& barriers, ID3D12Resource* resource, D3D12_RESOURCE_STATES before, D3D12_RESOURCE_STATES after)
+static void render_dx12_push_barrier(render_dx12_t* render, scoped_array_t<D3D12_RESOURCE_BARRIER>& barriers, ID3D12Resource* resource, D3D12_RESOURCE_STATES before, D3D12_RESOURCE_STATES after)
 {
 	D3D12_RESOURCE_BARRIER barrier_desc;
 	barrier_desc.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
@@ -937,9 +1037,7 @@ static void render_dx12_push_barrier(render_dx12_t* render, array_t<D3D12_RESOUR
 	barrier_desc.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 	barrier_desc.Transition.StateBefore = before;
 	barrier_desc.Transition.StateAfter = after;
-	if (barriers.full())
-		barriers.grow(render->allocator);
-	barriers.append(barrier_desc);
+	barriers.grow_and_append(barrier_desc);
 }
 
 struct render_dx12_sort_object_t
@@ -968,6 +1066,7 @@ struct render_dx12_pass_context_t
 	UINT64 passed_copy_fence;
 
 	ID3D12GraphicsCommandList* command_list;
+	ID3D12RaytracingFallbackCommandList* dxr_command_list;
 };
 
 static void render_dx12_do_draw(render_dx12_t* render, render_dx12_pass_context_t& ctx, render_dx12_pass_t* pass, render_dx12_view_t* view, render_dx12_script_t* script, size_t ip)
@@ -979,6 +1078,7 @@ static void render_dx12_do_draw(render_dx12_t* render, render_dx12_pass_context_
 	size_t argument_data_offset = render->upload_ring.get(argument_size);
 	render_dx12_indirect_argument_t* argument_data = reinterpret_cast<render_dx12_indirect_argument_t*>(render->upload_buffer + argument_data_offset);
 
+	sort_objects.clear();
 	for (size_t i = 0; i < ctx.num_instances; ++i)
 	{
 		const render_dx12_instance_t* instance = ctx.instances + i;
@@ -992,7 +1092,7 @@ static void render_dx12_do_draw(render_dx12_t* render, render_dx12_pass_context_
 
 		// TODO: sort objects should be added once per pass if object matches what to draw
 		// TODO: encode variant
-		sort_objects.append(render_dx12_sort_object_t(render->shaders.pointer_to_handle(shader), render->meshes.pointer_to_handle(mesh), (render_instance_id_t)i));
+		sort_objects.grow_and_append(render_dx12_sort_object_t(render->shaders.pointer_to_handle(shader), render->meshes.pointer_to_handle(mesh), (render_instance_id_t)i));
 	}
 	std::sort(sort_objects.begin(), sort_objects.end());
 
@@ -1019,35 +1119,6 @@ static void render_dx12_do_draw(render_dx12_t* render, render_dx12_pass_context_
 	barriers.clear();
 	render_dx12_push_barrier(render, barriers, render->argument_buffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
 	ctx.command_list->ResourceBarrier((UINT)barriers.length(), barriers.begin());
-
-	D3D12_CPU_DESCRIPTOR_HANDLE* color_targets = nullptr;
-	D3D12_CPU_DESCRIPTOR_HANDLE* depth_stencil_target = nullptr;
-	if (pass->num_color_attachments)
-	{
-		color_targets = &pass->color_descriptor[ctx.backbuffer_index];
-		for (size_t t = 0; t < pass->num_color_attachments; ++t)
-		{
-			const float color[4] = { 0.3f, 0.3f, 0.7f, 0.0f };
-			D3D12_CPU_DESCRIPTOR_HANDLE rtv = pass->color_descriptor[ctx.backbuffer_index];
-			rtv.ptr += t * render->rtv_size;
-			ctx.command_list->ClearRenderTargetView(rtv, color, 0, nullptr);
-		}
-	}
-
-	if (pass->has_depth_stencil_attachment)
-	{
-		depth_stencil_target = &pass->depth_stencil_descriptor;
-		ctx.command_list->ClearDepthStencilView(pass->depth_stencil_descriptor, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
-	}
-
-	// TODO: handle nullptr here if no color or depth target
-	ctx.command_list->OMSetRenderTargets((UINT)pass->num_color_attachments, color_targets, true, depth_stencil_target);
-
-	D3D12_RECT rect = { 0, 0, (LONG)render->width, (LONG)render->height }; // TODO
-	ctx.command_list->RSSetScissorRects(1, &rect);
-
-	D3D12_VIEWPORT viewport = { 0.0f, 0.0f, (float)render->width, (float)render->height, 0.0f, 1.0f };
-	ctx.command_list->RSSetViewports(1, &viewport);
 
 	ctx.command_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
@@ -1103,9 +1174,78 @@ static void render_dx12_do_draw(render_dx12_t* render, render_dx12_pass_context_
 	}
 }
 
+static void render_dx12_do_dispatch_rays(render_dx12_t* render, render_dx12_pass_context_t& ctx, render_dx12_pass_t* pass, render_dx12_view_t* view, render_dx12_script_t* script, size_t ip)
+{
+	D3D12_FALLBACK_DISPATCH_RAYS_DESC raytraceDesc = {};
+	raytraceDesc.RayGenerationShaderRecord.StartAddress = render->dxr_shader_table->GetGPUVirtualAddress() + 0 * render->dxr_shader_table_entry_size;
+	raytraceDesc.RayGenerationShaderRecord.SizeInBytes = render->dxr_shader_table_entry_size;
+	raytraceDesc.Width = render->width;
+	raytraceDesc.Height = render->height;
+
+	// RayGen is the first entry in the shader-table
+	raytraceDesc.RayGenerationShaderRecord.StartAddress = render->dxr_shader_table->GetGPUVirtualAddress() + 0 * render->dxr_shader_table_entry_size;
+	raytraceDesc.RayGenerationShaderRecord.SizeInBytes = render->dxr_shader_table_entry_size;
+
+	// Miss is the second entry in the shader-table
+	size_t missOffset = 1 * render->dxr_shader_table_entry_size;
+	raytraceDesc.MissShaderTable.StartAddress = render->dxr_shader_table->GetGPUVirtualAddress() + missOffset;
+	raytraceDesc.MissShaderTable.StrideInBytes = render->dxr_shader_table_entry_size;
+	raytraceDesc.MissShaderTable.SizeInBytes = render->dxr_shader_table_entry_size;   // Only a s single miss-entry
+
+	// Hit is the third entry in the shader-table
+	size_t hitOffset = 2 * render->dxr_shader_table_entry_size;
+	raytraceDesc.HitGroupTable.StartAddress = render->dxr_shader_table->GetGPUVirtualAddress() + hitOffset;
+	raytraceDesc.HitGroupTable.StrideInBytes = render->dxr_shader_table_entry_size;
+	raytraceDesc.HitGroupTable.SizeInBytes = render->dxr_shader_table_entry_size;
+
+	// Bind the empty root signature
+	ctx.command_list->SetComputeRootSignature(render->dxr_empty_root_signature);
+
+	ID3D12DescriptorHeap* heaps[] = { render->cbv_srv_uav_heap };
+	ctx.dxr_command_list->SetDescriptorHeaps(ARRAY_LENGTH(heaps), heaps);
+
+	ctx.command_list->SetComputeRootDescriptorTable(GlobalRootSignatureParams::VertexBuffersSlot, m_indexBuffer.gpuDescriptorHandle);
+	ctx.command_list->SetComputeRootDescriptorTable(GlobalRootSignatureParams::OutputViewSlot, m_raytracingOutputResourceUAVGpuDescriptor);
+
+	ctx.dxr_command_list->SetTopLevelAccelerationStructure(GlobalRootSignatureParams::AccelerationStructureSlot, m_fallbackTopLevelAccelerationStructurePointer);
+
+	// Dispatch
+	ctx.dxr_command_list->DispatchRays(render->dxr_pipeline_state, &raytraceDesc);
+}
+
 static void render_dx12_do_pass(render_dx12_t* render, render_dx12_pass_context_t& ctx, render_dx12_view_t* view, render_dx12_script_t* script, size_t ip)
 {
 	render_dx12_pass_t* pass = &script->passes[ip];
+
+	D3D12_CPU_DESCRIPTOR_HANDLE* color_targets = nullptr;
+	D3D12_CPU_DESCRIPTOR_HANDLE* depth_stencil_target = nullptr;
+	// TODO: load actions
+	if (pass->num_color_attachments)
+	{
+		color_targets = &pass->color_descriptor[ctx.backbuffer_index];
+		for (size_t t = 0; t < pass->num_color_attachments; ++t)
+		{
+			const float color[4] = { 0.3f, 0.3f, 0.7f, 0.0f };
+			D3D12_CPU_DESCRIPTOR_HANDLE rtv = pass->color_descriptor[ctx.backbuffer_index];
+			rtv.ptr += t * render->rtv_size;
+			ctx.command_list->ClearRenderTargetView(rtv, color, 0, nullptr);
+		}
+	}
+
+	if (pass->has_depth_stencil_attachment)
+	{
+		depth_stencil_target = &pass->depth_stencil_descriptor;
+		ctx.command_list->ClearDepthStencilView(pass->depth_stencil_descriptor, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
+	}
+
+	// TODO: handle nullptr here if no color or depth target
+	ctx.command_list->OMSetRenderTargets((UINT)pass->num_color_attachments, color_targets, true, depth_stencil_target);
+
+	D3D12_RECT rect = { 0, 0, (LONG)render->width, (LONG)render->height }; // TODO
+	ctx.command_list->RSSetScissorRects(1, &rect);
+
+	D3D12_VIEWPORT viewport = { 0.0f, 0.0f, (float)render->width, (float)render->height, 0.0f, 1.0f };
+	ctx.command_list->RSSetViewports(1, &viewport);
 
 	for (size_t i = 0; i < pass->num_commands; ++i)
 	{
@@ -1114,10 +1254,350 @@ static void render_dx12_do_pass(render_dx12_t* render, render_dx12_pass_context_
 			case RENDER_COMMAND_DRAW:
 				render_dx12_do_draw(render, ctx, pass, view, script, ip);
 				break;
+			case RENDER_COMMAND_DISPATCH_RAYS:
+				render_dx12_do_dispatch_rays(render, ctx, pass, view, script, ip);
+				break;
 			default:
 				BREAKPOINT();
 		}
 	}
+}
+
+static void render_dx12_create_bottom_level_as(render_dx12_t* render)
+{
+	render_dx12_t::frame_data_t& frame = render_dx12_curr_frame(render);
+
+	render_dx12_mesh_t* mesh = render->meshes.handle_to_pointer(0);
+
+	D3D12_RAYTRACING_GEOMETRY_DESC geom_desc = {};
+	geom_desc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
+	geom_desc.Triangles.VertexBuffer.StartAddress = mesh->vb->GetGPUVirtualAddress();
+	geom_desc.Triangles.VertexBuffer.StrideInBytes = 3 * sizeof(float);
+	geom_desc.Triangles.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
+	geom_desc.Triangles.VertexCount = (UINT)mesh->num_vertices;
+	geom_desc.Triangles.IndexBuffer = mesh->ib->GetGPUVirtualAddress();
+	geom_desc.Triangles.IndexFormat = DXGI_FORMAT_R16_UINT;
+	geom_desc.Triangles.IndexCount = (UINT)mesh->num_indices;
+	geom_desc.Flags = D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
+
+	// Get the size requirements for the scratch and AS buffers
+	D3D12_GET_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO_DESC prebuild_desc = {};
+	prebuild_desc.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
+	prebuild_desc.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
+	prebuild_desc.NumDescs = 1;
+	prebuild_desc.pGeometryDescs = &geom_desc;
+	prebuild_desc.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
+
+	render->dxr_device->GetRaytracingAccelerationStructurePrebuildInfo(&prebuild_desc, &render->dxr_as_prebuild_info);
+
+	D3D12_RESOURCE_STATES initialResourceState = render->dxr_device->GetAccelerationStructureResourceState();
+
+	// Create the buffers. They need to support UAV, and since we are going to immediately use them, we create them with an unordered-access state
+	ID3D12Resource* scratch = render_dx12_create_buffer(render, render->dxr_as_prebuild_info.ScratchDataSizeInBytes, D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+	ID3D12Resource* result = render_dx12_create_buffer(render, render->dxr_as_prebuild_info.ResultDataMaxSizeInBytes, D3D12_HEAP_TYPE_DEFAULT, initialResourceState, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+
+	// Create the bottom-level AS
+	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC desc = {};
+	desc.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
+	desc.pGeometryDescs = &geom_desc;
+	desc.DestAccelerationStructureData.StartAddress = result->GetGPUVirtualAddress();
+	desc.DestAccelerationStructureData.SizeInBytes = render->dxr_as_prebuild_info.ResultDataMaxSizeInBytes;
+
+	desc.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_NONE;
+	desc.NumDescs = 1;
+	desc.ScratchAccelerationStructureData.StartAddress = scratch->GetGPUVirtualAddress();
+	desc.ScratchAccelerationStructureData.SizeInBytes = render->dxr_as_prebuild_info.ScratchDataSizeInBytes;
+
+	desc.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
+
+	ID3D12DescriptorHeap* heaps[] = { render->cbv_srv_uav_heap };
+	frame.dxr_command_list->SetDescriptorHeaps(ARRAY_LENGTH(heaps), heaps);
+	frame.dxr_command_list->BuildRaytracingAccelerationStructure(&desc);
+
+	// We need to insert a UAV barrier before using the acceleration structures in a raytracing operation
+	D3D12_RESOURCE_BARRIER uav_barrier = {};
+	uav_barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+	uav_barrier.UAV.pResource = result;
+	frame.command_list->ResourceBarrier(1, &uav_barrier);
+
+	render_dx12_push_delay_delete(render, scratch);
+
+	render->dxr_bottom_level_as = result;
+}
+
+
+static void render_dx12_create_top_level_as(render_dx12_t* render)
+{
+	render_dx12_t::frame_data_t& frame = render_dx12_curr_frame(render);
+
+	// First, get the size of the TLAS buffers and create them
+	D3D12_GET_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO_DESC prebuild_desc = {};
+	prebuild_desc.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
+	prebuild_desc.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_NONE;
+	prebuild_desc.NumDescs = 1;
+	prebuild_desc.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
+
+	D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO info;
+	render->dxr_device->GetRaytracingAccelerationStructurePrebuildInfo(&prebuild_desc, &info);
+
+	D3D12_RESOURCE_STATES initialResourceState = render->dxr_device->GetAccelerationStructureResourceState();
+
+	// Create the buffers
+	ID3D12Resource* scratch = render_dx12_create_buffer(render, info.ScratchDataSizeInBytes, D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+	ID3D12Resource* result = render_dx12_create_buffer(render, info.ResultDataMaxSizeInBytes, D3D12_HEAP_TYPE_DEFAULT, initialResourceState, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+	//tlasSize = info.ResultDataMaxSizeInBytes;
+
+	// The instance desc should be inside a buffer, create and map the buffer
+	ID3D12Resource* instance_desc_buffer = render_dx12_create_buffer(render, sizeof(D3D12_RAYTRACING_FALLBACK_INSTANCE_DESC), D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_STATE_GENERIC_READ);
+	D3D12_RAYTRACING_FALLBACK_INSTANCE_DESC* instance_desc;
+	instance_desc_buffer->Map(0, nullptr, (void**)&instance_desc);
+
+	// Initialize the instance desc. We only have a single instance
+	instance_desc->InstanceID = 0;                            // This value will be exposed to the shader via InstanceID()
+	instance_desc->InstanceContributionToHitGroupIndex = 0;   // This is the offset inside the shader-table. We only have a single geometry, so the offset 0
+	instance_desc->Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
+	float m[16] = {
+		1.0f, 0.0f, 0.0f, 0.0f,
+		0.0f, 1.0f, 0.0f, 0.0f,
+		0.0f, 0.0f, 1.0f, 0.0f,
+		0.0f, 0.0f, 0.0f, 1.0f,
+	};
+	memcpy(instance_desc->Transform, &m, sizeof(instance_desc->Transform));
+
+	UINT numBufferElements = static_cast<UINT>(render->dxr_as_prebuild_info.ResultDataMaxSizeInBytes) / sizeof(UINT32);
+	instance_desc->AccelerationStructure = CreateFallbackWrappedPointer(render, render->dxr_bottom_level_as, numBufferElements);
+	instance_desc->InstanceMask = 0xFF;
+
+	// Unmap
+	instance_desc_buffer->Unmap(0, nullptr);
+
+	// Create the TLAS
+	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC desc = {};
+	desc.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
+	desc.DestAccelerationStructureData.StartAddress = result->GetGPUVirtualAddress();
+	desc.DestAccelerationStructureData.SizeInBytes = info.ResultDataMaxSizeInBytes;
+
+	desc.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_NONE;
+	desc.InstanceDescs = instance_desc_buffer->GetGPUVirtualAddress();
+	desc.NumDescs = 1;
+	desc.ScratchAccelerationStructureData.StartAddress = scratch->GetGPUVirtualAddress();
+	desc.ScratchAccelerationStructureData.SizeInBytes = info.ScratchDataSizeInBytes;
+	desc.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
+
+	ID3D12DescriptorHeap* heaps[] = { render->cbv_srv_uav_heap };
+	frame.dxr_command_list->SetDescriptorHeaps(ARRAY_LENGTH(heaps), heaps);
+	frame.dxr_command_list->BuildRaytracingAccelerationStructure(&desc);
+
+	// We need to insert a UAV barrier before using the acceleration structures in a raytracing operation
+	D3D12_RESOURCE_BARRIER uav_barrier = {};
+	uav_barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+	uav_barrier.UAV.pResource = result;
+	frame.command_list->ResourceBarrier(1, &uav_barrier);
+
+	render_dx12_push_delay_delete(render, scratch);
+	render_dx12_push_delay_delete(render, instance_desc_buffer);
+
+	render->dxr_top_level_as = result;
+}
+
+void render_dx12_create_as(render_dx12_t* render)
+{
+	render_dx12_create_bottom_level_as(render);
+	render_dx12_create_top_level_as(render);
+}
+
+IDxcBlob* render_dx12_compile_library(render_dx12_t* render, const char* filename, const WCHAR* target_string)
+{
+	IDxcCompiler* compiler;
+	HRESULT hr = DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(&compiler));
+	ASSERT(SUCCEEDED(hr));
+
+	IDxcLibrary* library;
+	hr = DxcCreateInstance(CLSID_DxcLibrary, IID_PPV_ARGS(&library));
+	ASSERT(SUCCEEDED(hr));
+
+	char* shader_text = file_open_read_all_text(filename, render->allocator);
+
+	IDxcBlobEncoding* text_blob;
+	hr = library->CreateBlobWithEncodingFromPinned((LPBYTE)shader_text, (UINT32)strlen(shader_text), 0, &text_blob);
+	ASSERT(SUCCEEDED(hr));
+
+	IDxcOperationResult* result;
+	hr = compiler->Compile(text_blob, L"foo", L"", target_string, nullptr, 0, nullptr, 0, nullptr, &result);
+	ASSERT(SUCCEEDED(hr));
+
+	result->GetStatus(&hr);
+	if (FAILED(hr))
+	{
+		IDxcBlobEncoding* error;
+		result->GetErrorBuffer(&error);
+		BREAKPOINT();
+		//std::string log = convertBlobToString(pError.GetInterfacePtr());
+		//msgBox("Compiler error:\n" + log);
+		return nullptr;
+	}
+
+	IDxcBlob* blob;
+	hr = result->GetResult(&blob);
+	ASSERT(SUCCEEDED(hr));
+
+	result->Release();
+	text_blob->Release();
+	ALLOCATOR_FREE(render->allocator, shader_text);
+	library->Release();
+	compiler->Release();
+
+	return blob;
+}
+
+static ID3D12RootSignature* render_dx12_create_root_signature(render_dx12_t* render, const D3D12_ROOT_SIGNATURE_DESC& desc)
+{
+    ID3DBlob* signature_blob = nullptr;
+    ID3DBlob* error_blob = nullptr;
+    HRESULT hr = render->dxr_device->D3D12SerializeRootSignature(&desc, D3D_ROOT_SIGNATURE_VERSION_1, &signature_blob, &error_blob);
+	ASSERT(SUCCEEDED(hr));
+
+    ID3D12RootSignature* root_signature = nullptr;
+    hr = render->dxr_device->CreateRootSignature(0, signature_blob->GetBufferPointer(), signature_blob->GetBufferSize(), IID_PPV_ARGS(&root_signature));
+	ASSERT(SUCCEEDED(hr));
+
+    return root_signature;
+}
+
+
+static const WCHAR* kRayGenShader = L"rayGen";
+static const WCHAR* kMissShader = L"miss";
+static const WCHAR* kClosestHitShader = L"chs";
+static const WCHAR* kHitGroup = L"HitGroup";
+static void render_dx12_create_pipeline(render_dx12_t* render)
+{
+	IDxcBlob* library = render_dx12_compile_library(render, "rtshader.hlsl", L"lib_6_3"); // TODO: release?
+
+	D3D12_STATE_SUBOBJECT subobjects[10];
+	size_t curr_subobject = 0;
+
+	D3D12_EXPORT_DESC entry_points[] = {
+		{kRayGenShader, nullptr, D3D12_EXPORT_FLAG_NONE},
+		{kMissShader, nullptr, D3D12_EXPORT_FLAG_NONE},
+		{kClosestHitShader, nullptr, D3D12_EXPORT_FLAG_NONE},
+	};
+
+	D3D12_DXIL_LIBRARY_DESC dxil_lib_desc = {};
+	dxil_lib_desc.DXILLibrary.pShaderBytecode = library->GetBufferPointer();
+	dxil_lib_desc.DXILLibrary.BytecodeLength = library->GetBufferSize();
+	dxil_lib_desc.NumExports = ARRAY_LENGTH(entry_points);
+	dxil_lib_desc.pExports = entry_points;
+
+	D3D12_STATE_SUBOBJECT& dxil_lib_subobject = subobjects[curr_subobject++];
+	dxil_lib_subobject.Type = D3D12_STATE_SUBOBJECT_TYPE_DXIL_LIBRARY;
+	dxil_lib_subobject.pDesc = &dxil_lib_desc;
+
+	D3D12_HIT_GROUP_DESC hit_group_desc = {};
+	hit_group_desc.ClosestHitShaderImport = kClosestHitShader;
+	hit_group_desc.HitGroupExport = kHitGroup;
+
+	D3D12_STATE_SUBOBJECT& hit_group_subobject = subobjects[curr_subobject++];
+	hit_group_subobject.Type = D3D12_STATE_SUBOBJECT_TYPE_HIT_GROUP;
+	hit_group_subobject.pDesc = &hit_group_desc;
+
+	D3D12_DESCRIPTOR_RANGE ranges[2] = {};
+	ranges[0].BaseShaderRegister = 0;
+	ranges[0].NumDescriptors = 1;
+	ranges[0].RegisterSpace = 0;
+	ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+	ranges[0].OffsetInDescriptorsFromTableStart = 0;
+	ranges[1].BaseShaderRegister = 0;
+	ranges[1].NumDescriptors = 1;
+	ranges[1].RegisterSpace = 0;
+	ranges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	ranges[1].OffsetInDescriptorsFromTableStart = 1;
+
+	D3D12_ROOT_PARAMETER root_params[1] = {};
+	root_params[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	root_params[0].DescriptorTable.NumDescriptorRanges = ARRAY_LENGTH(ranges);
+	root_params[0].DescriptorTable.pDescriptorRanges = ranges;
+
+	D3D12_ROOT_SIGNATURE_DESC root_signature_desc = {};
+	root_signature_desc.NumParameters = ARRAY_LENGTH(root_params);
+	root_signature_desc.pParameters = root_params;
+	root_signature_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
+
+	size_t rgs_root_signature_index = curr_subobject++;
+	D3D12_STATE_SUBOBJECT& rgs_root_signature_subobject = subobjects[rgs_root_signature_index];
+	ID3D12RootSignature* rgs_root_signature = render_dx12_create_root_signature(render, root_signature_desc); // TODO: release?
+	rgs_root_signature_subobject.pDesc = &rgs_root_signature;
+	rgs_root_signature_subobject.Type = D3D12_STATE_SUBOBJECT_TYPE_LOCAL_ROOT_SIGNATURE;
+
+	D3D12_SUBOBJECT_TO_EXPORTS_ASSOCIATION rgs_association = {};
+	rgs_association.NumExports = 1;
+	rgs_association.pExports = &kRayGenShader;
+	rgs_association.pSubobjectToAssociate = &subobjects[rgs_root_signature_index];
+
+	D3D12_STATE_SUBOBJECT& rgs_export_association_subobject = subobjects[curr_subobject++];
+	rgs_export_association_subobject.Type = D3D12_STATE_SUBOBJECT_TYPE_SUBOBJECT_TO_EXPORTS_ASSOCIATION;
+	rgs_export_association_subobject.pDesc = &rgs_association;
+
+	D3D12_ROOT_SIGNATURE_DESC hm_root_signature_desc = {};
+	hm_root_signature_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
+
+	size_t hm_root_signature_index = curr_subobject++;
+	D3D12_STATE_SUBOBJECT& hm_root_signature_subobject = subobjects[hm_root_signature_index];
+	ID3D12RootSignature* hm_root_signature = render_dx12_create_root_signature(render, hm_root_signature_desc); // TODO: release?
+	hm_root_signature_subobject.pDesc = &hm_root_signature;
+	hm_root_signature_subobject.Type = D3D12_STATE_SUBOBJECT_TYPE_LOCAL_ROOT_SIGNATURE;
+
+	const WCHAR* missHitExportName[] = { kMissShader, kHitGroup };
+	D3D12_SUBOBJECT_TO_EXPORTS_ASSOCIATION hm_association = {};
+	hm_association.NumExports = ARRAY_LENGTH(missHitExportName);
+	hm_association.pExports = missHitExportName;
+	hm_association.pSubobjectToAssociate = &subobjects[hm_root_signature_index];
+
+	D3D12_STATE_SUBOBJECT& hm_export_association_subobject = subobjects[curr_subobject++];
+	hm_export_association_subobject.Type = D3D12_STATE_SUBOBJECT_TYPE_SUBOBJECT_TO_EXPORTS_ASSOCIATION;
+	hm_export_association_subobject.pDesc = &hm_association;
+
+	D3D12_RAYTRACING_SHADER_CONFIG shader_config = {};
+	shader_config.MaxAttributeSizeInBytes = 2 * sizeof(float);
+	shader_config.MaxPayloadSizeInBytes = 1 * sizeof(float);
+
+	size_t shader_config_index = curr_subobject++;
+	D3D12_STATE_SUBOBJECT& shader_config_subobject = subobjects[shader_config_index];
+	shader_config_subobject.Type = D3D12_STATE_SUBOBJECT_TYPE_RAYTRACING_SHADER_CONFIG;
+	shader_config_subobject.pDesc = &shader_config;
+
+	const WCHAR* sc_exports[] = { kMissShader, kHitGroup, kRayGenShader };
+	D3D12_SUBOBJECT_TO_EXPORTS_ASSOCIATION sc_association = {};
+	sc_association.NumExports = ARRAY_LENGTH(sc_exports);
+	sc_association.pExports = sc_exports;
+	sc_association.pSubobjectToAssociate = &subobjects[shader_config_index];
+
+	D3D12_STATE_SUBOBJECT& sc_export_association_subobject = subobjects[curr_subobject++];
+	sc_export_association_subobject.Type = D3D12_STATE_SUBOBJECT_TYPE_SUBOBJECT_TO_EXPORTS_ASSOCIATION;
+	sc_export_association_subobject.pDesc = &sc_association;
+
+	D3D12_RAYTRACING_PIPELINE_CONFIG pipeline_config = {};
+	pipeline_config.MaxTraceRecursionDepth = 0;
+
+	D3D12_STATE_SUBOBJECT& pipeline_config_subobject = subobjects[curr_subobject++];
+	pipeline_config_subobject.Type = D3D12_STATE_SUBOBJECT_TYPE_RAYTRACING_PIPELINE_CONFIG;
+	pipeline_config_subobject.pDesc = &pipeline_config;
+
+	D3D12_ROOT_SIGNATURE_DESC global_root_signature_desc = {};
+
+	D3D12_STATE_SUBOBJECT& global_root_signature_subobject = subobjects[curr_subobject++];
+	ID3D12RootSignature* global_root_signature = render_dx12_create_root_signature(render, global_root_signature_desc); // TODO: release?
+	global_root_signature_subobject.pDesc = &global_root_signature;
+	global_root_signature_subobject.Type = D3D12_STATE_SUBOBJECT_TYPE_ROOT_SIGNATURE;
+	render->dxr_empty_root_signature = global_root_signature;
+
+	ASSERT(curr_subobject <= ARRAY_LENGTH(subobjects));
+	D3D12_STATE_OBJECT_DESC state_object_desc = {};
+	state_object_desc.NumSubobjects = (UINT)curr_subobject;
+	state_object_desc.pSubobjects = subobjects;
+	state_object_desc.Type = D3D12_STATE_OBJECT_TYPE_RAYTRACING_PIPELINE;
+
+	HRESULT hr = render->dxr_device->CreateStateObject(&state_object_desc, IID_PPV_ARGS(&render->dxr_pipeline_state));
+	ASSERT(SUCCEEDED(hr));
 }
 
 void render_dx12_kick_render(render_dx12_t* render, render_view_id_t view_id, render_script_id_t script_id)
@@ -1128,7 +1608,7 @@ void render_dx12_kick_render(render_dx12_t* render, render_view_id_t view_id, re
 	render_dx12_pass_context_t ctx = { 0 };
 
 	HRESULT hr;
-	scoped_array_t<D3D12_RESOURCE_BARRIER> barriers(render->allocator, 8); // TODO: persist between frames or temp alloc
+	scoped_array_t<D3D12_RESOURCE_BARRIER> barriers(render->allocator); // TODO: persist between frames or temp alloc
 
 	// Get current backbuffer
 	ctx.backbuffer_index = render->swapchain->GetCurrentBackBufferIndex();
@@ -1141,7 +1621,7 @@ void render_dx12_kick_render(render_dx12_t* render, render_view_id_t view_id, re
 	{
 		// TODO: we know queue is processed in order and in chunks. Do this more efficient
 		render_dx12_upload_t& upload = render->pending_uploads[i];
-		if (upload.upload_fence <= ctx.passed_copy_fence)
+		if (upload.upload_fence > ctx.passed_copy_fence)
 		{
 			render_dx12_push_barrier(render, barriers, upload.resoure, upload.src_state, upload.dst_state); // TODO: no swapping here
 			render->pending_uploads.remove_at_fast(i);
@@ -1154,6 +1634,7 @@ void render_dx12_kick_render(render_dx12_t* render, render_view_id_t view_id, re
 
 	render_dx12_t::frame_data_t& frame = render_dx12_curr_frame(render);
 	ctx.command_list = frame.command_list;
+	ctx.dxr_command_list = frame.dxr_command_list;
 	// Make sure the next frame has passed so we can start recording new commands
 	// TODO: do this later, but we need it now to be able to upload data all the time
 	UINT64 last_completed_fence = render->fence->GetCompletedValue();
@@ -1174,6 +1655,45 @@ void render_dx12_kick_render(render_dx12_t* render, render_view_id_t view_id, re
 
 	// Do beginning of frame barriers
 	frame.command_list->ResourceBarrier((UINT)barriers.length(), barriers.begin());
+
+	// dxr start
+	if (render->dxr_bottom_level_as == nullptr)
+	{
+		render_dx12_create_as(render);
+		render_dx12_create_pipeline(render);
+
+		uint32_t progIdSize = render->dxr_device->GetShaderIdentifierSize();
+		render->dxr_shader_table_entry_size = progIdSize;
+		render->dxr_shader_table_entry_size += 8; // The ray-gen's descriptor table
+		render->dxr_shader_table_entry_size = ALIGN_UP(render->dxr_shader_table_entry_size, D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT);
+		uint32_t shaderTableSize = render->dxr_shader_table_entry_size * 3;
+
+		render->dxr_shader_table = render_dx12_create_buffer(render, shaderTableSize, D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_STATE_GENERIC_READ);
+
+		uint8_t* pData;
+		hr = render->dxr_shader_table->Map(0, nullptr, (void**)&pData);
+		ASSERT(SUCCEEDED(hr));
+
+		//ID3D12StateObjectPropertiesPrototype* pRtsoProps = nullptr;
+		//hr = render->dxr_pipeline_state->QueryInterface(IID_PPV_ARGS(&pRtsoProps));
+		//ASSERT(SUCCEEDED(hr));
+
+		// Entry 0 - ray-gen program ID and descriptor data
+		const void* ray_gen_shader_identifier = render->dxr_pipeline_state->GetShaderIdentifier(kRayGenShader);
+		memcpy(pData, ray_gen_shader_identifier, progIdSize);
+
+		// This is where we need to set the descriptor data for the ray-gen shader. We'll get to it in the next tutorial
+
+		// Entry 1 - miss program
+		memcpy(pData + render->dxr_shader_table_entry_size, render->dxr_pipeline_state->GetShaderIdentifier(kMissShader), progIdSize);
+
+		// Entry 2 - hit program
+		uint8_t* pHitEntry = pData + render->dxr_shader_table_entry_size * 2; // +2 skips the ray-gen and miss entries
+		memcpy(pHitEntry, render->dxr_pipeline_state->GetShaderIdentifier(kHitGroup), progIdSize);
+
+		// Unmap
+		render->dxr_shader_table->Unmap(0, nullptr);
+	}
 
 	// Start uploading instance and view data for everything
 	// TODO: don't do this for data that has not changed!

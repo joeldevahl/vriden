@@ -24,7 +24,7 @@
 #include "resource_context.h"
 
 #define DATA_PATH "local/build/" PLATFORM_STRING "/"
-#define MAX_ENTITIES 10000
+#define MAX_ENTITIES 1
 
 #define ERROR_AND_QUIT(fmt, ...) { fprintf(stderr, "Error: " fmt "\n", ##__VA_ARGS__); return 0x0; }
 #define ERROR_AND_FAIL(fmt, ...) { fprintf(stderr, "Error: " fmt "\n", ##__VA_ARGS__); return 1; }
@@ -141,72 +141,15 @@ int application_main(application_t* application)
 	render_create_info.allocator = &allocator_malloc;
 	render_create_info.window = window_get_platform_handle(window);
 	render_create_info.preferred_backend = (render_backend_t)render_backend;
-	render_create_info.max_textures = 1;
-	render_create_info.max_shaders = 1;
-	render_create_info.max_materials = 1;
-	render_create_info.max_meshes = 1;
+	render_create_info.max_textures = 4096;
+	render_create_info.max_shaders = 1024;
+	render_create_info.max_materials = 1024;
+	render_create_info.max_meshes = 1024;
 	render_create_info.max_instances = MAX_ENTITIES;
 	render_t* render;
 	render_result_t render_res = render_create(&render_create_info, &render);
 	ASSERT(render_res == RENDER_RESULT_OK, "failed create render");
 	resource_context.render = render;
-
-	render_view_create_info_t view_create_info;
-	glm::mat4x4 projection_matrix = glm::perspective(glm::radians(45.0f), 1280.0f/720.0f, 0.1f, 1000.0f);
-	glm::mat4x4 view_matrix = glm::lookAt(glm::vec3(0.0f, 0.0f, 150.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-	memcpy(view_create_info.initial_data.proj_mat, glm::value_ptr(projection_matrix), sizeof(view_create_info.initial_data.proj_mat));
-	memcpy(view_create_info.initial_data.view_mat, glm::value_ptr(view_matrix), sizeof(view_create_info.initial_data.view_mat));
-	render_view_id_t view_id;
-	render_res = render_view_create(render, &view_create_info, &view_id);
-	ASSERT(render_res == RENDER_RESULT_OK, "failed create view");
-
-	render_target_t transient_targets[] =
-	{
-		{
-			"depth buffer",
-			RENDER_TARGET_SIZE_MODE_BACKBUFFER_RELATIVE,
-			1.0f, 1.0f,
-			0, // TODO: format?
-		},
-	};
-
-	render_attachment_t color_attachments[] =
-	{
-		{
-			"back buffer",
-			RENDER_LOAD_OP_CLEAR,
-			RENDER_STORE_OP_STORE,
-			{ 0.3f, 0.3f, 0.6f, 1.0f },
-		},
-	};
-
-	render_attachment_t depth_attachment =
-	{
-		"depth buffer",
-		RENDER_LOAD_OP_CLEAR,
-		RENDER_STORE_OP_STORE,
-		// initialize depth/stencil below
-	};
-	depth_attachment.clear_value.depth_stencil.depth = 1.0f;
-	depth_attachment.clear_value.depth_stencil.stencil = 0;
-
-	render_command_t commands[1];
-	commands[0].type = RENDER_COMMAND_DRAW;
-	commands[0].draw.dummy = 0; // TODO
-
-	render_pass_t passes[] =
-	{
-		{ ARRAY_LENGTH(color_attachments), color_attachments, &depth_attachment, ARRAY_LENGTH(commands), commands },
-	};
-
-	render_script_create_info_t script_create_info;
-	script_create_info.num_transient_targets = ARRAY_LENGTH(transient_targets);
-	script_create_info.transient_targets = transient_targets;
-	script_create_info.num_passes = ARRAY_LENGTH(passes);
-	script_create_info.passes = passes;
-	render_script_id_t script_id;
-	render_res = render_script_create(render, &script_create_info, &script_id);
-	ASSERT(render_res == RENDER_RESULT_OK, "failed create script");
 
 	mesh_register_creator(&resource_context);
 	shader_register_creator(&resource_context);
@@ -263,6 +206,13 @@ int application_main(application_t* application)
 	resource_cache_handle_to_pointer(resource_cache, mesh_handle, &mesh_ptr);
 	render_mesh_id_t mesh_id = (render_mesh_id_t)(uintptr_t)mesh_ptr;
 
+	resource_handle_t shader_handle;
+	resource_res = resource_cache_get_by_name(resource_cache, "projects/vriden/data/shaders/default.shader", &shader_handle);
+	ASSERT(resource_res == RESOURCE_CACHE_RESULT_OK);
+	void* shader_ptr;
+	resource_cache_handle_to_pointer(resource_cache, shader_handle, &shader_ptr);
+	render_shader_id_t shader_id = (render_shader_id_t)(uintptr_t)shader_ptr;
+
 	resource_handle_t material_handle;
 	resource_res = resource_cache_get_by_name(resource_cache, "projects/vriden/data/materials/default.material", &material_handle);
 	ASSERT(resource_res == RESOURCE_CACHE_RESULT_OK);
@@ -279,10 +229,13 @@ int application_main(application_t* application)
 			{ 0 },
 		},
 	};
-	for (size_t i = 0; i < MAX_ENTITIES; ++i)
+
+	int side = (int)(sqrtf((float)MAX_ENTITIES) + 0.5);
+	int half_side = side / 2;
+	for (int i = 0; i < MAX_ENTITIES; ++i)
 	{
-		float x = (float)(i % 100) - 50;
-		float y = (float)(i / 100) - 50;
+		float x = (float)(i % side) - half_side;
+		float y = (float)(i / side) - half_side;
 		glm::mat4x4 translation = glm::translate(glm::vec3(x, y, 0.0f));
 		glm::mat4x4 rotx = glm::rotate(x * 0.01f, glm::vec3(1.0f, 0.0f, 0.0f));
 		glm::mat4x4 roty = glm::rotate(y * 0.01f, glm::vec3(0.0f, 1.0f, 0.0f));
@@ -291,6 +244,61 @@ int application_main(application_t* application)
 		render_res = render_instance_create(render, &instance_create_info, &instance_id[i]);
 		ASSERT(render_res == RENDER_RESULT_OK, "failed create render instance");
 	}
+
+	render_view_create_info_t view_create_info;
+	glm::mat4x4 projection_matrix = glm::perspective(glm::radians(45.0f), 1280.0f/720.0f, 0.1f, 1000.0f);
+	glm::mat4x4 view_matrix = glm::lookAt(glm::vec3(0.0f, 0.0f, 1.5f * (float)side), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	memcpy(view_create_info.initial_data.proj_mat, glm::value_ptr(projection_matrix), sizeof(view_create_info.initial_data.proj_mat));
+	memcpy(view_create_info.initial_data.view_mat, glm::value_ptr(view_matrix), sizeof(view_create_info.initial_data.view_mat));
+	render_view_id_t view_id;
+	render_res = render_view_create(render, &view_create_info, &view_id);
+	ASSERT(render_res == RENDER_RESULT_OK, "failed create view");
+
+	render_target_t transient_targets[] =
+	{
+		{
+			"depth buffer",
+			RENDER_TARGET_SIZE_MODE_BACKBUFFER_RELATIVE,
+			1.0f, 1.0f,
+			RENDER_FORMAT_D32_FLOAT_S8X24_UINT,
+		},
+	};
+	transient_targets[0].clear_value.depth_stencil.depth = 1.0f;
+	transient_targets[0].clear_value.depth_stencil.stencil = 0;
+
+	render_attachment_t color_attachments[] =
+	{
+		{
+			"back buffer",
+			RENDER_LOAD_OP_CLEAR,
+			RENDER_STORE_OP_STORE,
+		},
+	};
+
+	render_attachment_t depth_attachment =
+	{
+		"depth buffer",
+		RENDER_LOAD_OP_CLEAR,
+		RENDER_STORE_OP_STORE,
+	};
+
+	render_command_t commands[1];
+	commands[0].type = RENDER_COMMAND_DISPATCH_RAYS;
+	commands[0].dispatch_rays.shader_id = shader_id;
+
+	render_pass_t passes[] =
+	{
+		{ ARRAY_LENGTH(color_attachments), color_attachments, &depth_attachment, ARRAY_LENGTH(commands), commands },
+	};
+
+	render_script_create_info_t script_create_info;
+	script_create_info.num_transient_targets = ARRAY_LENGTH(transient_targets);
+	script_create_info.transient_targets = transient_targets;
+	script_create_info.num_passes = ARRAY_LENGTH(passes);
+	script_create_info.passes = passes;
+	render_script_id_t script_id;
+	render_res = render_script_create(render, &script_create_info, &script_id);
+	ASSERT(render_res == RENDER_RESULT_OK, "failed create script");
 
 	uint64_t freq = time_frequency();
 	uint64_t start = time_current();
@@ -304,8 +312,8 @@ int application_main(application_t* application)
 
 		for (size_t i = 0; i < MAX_ENTITIES; ++i)
 		{
-			float x = (float)(i % 100) - 50;
-			float y = (float)(i / 100) - 50;
+			float x = (float)(i % side) - half_side;
+			float y = (float)(i / side) - half_side;
 			glm::mat4x4 translation = glm::translate(glm::vec3(x, y, 0.0f));
 			glm::mat4x4 rotx = glm::rotate((x + t) * 0.01f, glm::vec3(1.0f, 0.0f, 0.0f));
 			glm::mat4x4 roty = glm::rotate((y + t) * 0.01f, glm::vec3(0.0f, 1.0f, 0.0f));
@@ -328,6 +336,7 @@ int application_main(application_t* application)
 	}
 
 	resource_cache_release_handle(resource_cache, mesh_handle);
+	resource_cache_release_handle(resource_cache, shader_handle);
 	resource_cache_release_handle(resource_cache, material_handle);
 	for (auto handle : handles)
 	{

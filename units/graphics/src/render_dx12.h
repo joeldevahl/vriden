@@ -8,8 +8,9 @@
 #include <foundation/idpool.h>
 #include <foundation/range_pool.h>
 
-#include <d3d12.h>
+#include <d3d12_1.h>
 #include <dxgi1_4.h>
+#include <D3D12RaytracingFallback.h>
 
 /* external types */
 #include <units/graphics/types/mesh.h>
@@ -187,6 +188,10 @@ struct render_dx12_mesh_t
 	size_t num_indices;
 
 	UINT64 upload_fence;
+
+	// DXR specific
+	//WRAPPED_GPU_POINTER dxr_vb;
+	//WRAPPED_GPU_POINTER dxr_ib;
 };
 
 struct render_dx12_instance_t
@@ -213,7 +218,7 @@ struct render_dx12_t : public render_t
 	objpool_t<render_dx12_texture_t,   render_texture_id_t>  textures;
 	objpool_t<render_dx12_shader_t,    render_shader_id_t>   shaders;
 	objpool_t<render_dx12_material_t,  render_material_id_t> materials;
-	objpool_t<render_dx12_mesh_t,      render_mesh_id_t>     meshes;
+	cobjpool_t<render_dx12_mesh_t,     render_mesh_id_t>     meshes;
 
 	cobjpool_t<render_dx12_instance_t, render_instance_id_t> instances;
 
@@ -235,6 +240,9 @@ struct render_dx12_t : public render_t
 		uint64_t fence_value;
 		ID3D12CommandAllocator* allocator;
 		ID3D12GraphicsCommandList* command_list;
+
+		// DXR specific
+		ID3D12RaytracingFallbackCommandList* dxr_command_list;
 
 		array_t<IUnknown*> delay_delete_queue;
 		size_t upload_fence_mark;
@@ -286,6 +294,19 @@ struct render_dx12_t : public render_t
 
 	ID3D12RootSignature* root_signature;
 	ID3D12CommandSignature* command_signature;
+
+	// DXR specific
+	ID3D12RaytracingFallbackDevice* dxr_device;
+
+	D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO dxr_as_prebuild_info;
+
+	ID3D12Resource* dxr_top_level_as;
+	ID3D12Resource* dxr_bottom_level_as;
+	ID3D12RaytracingFallbackStateObject* dxr_pipeline_state;
+	ID3D12RootSignature* dxr_empty_root_signature;
+	ID3D12Resource* dxr_shader_table;
+
+	uint32_t dxr_shader_table_entry_size;
 };
 
 struct render_dx12_indirect_argument_t

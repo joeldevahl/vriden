@@ -48,7 +48,7 @@
 
 			void main(in VP_OUTPUT input, out FP_OUTPUT output)
 			{
-				output.color = color;
+				output.color = float4(1.0, 0.0, 1.0, 1.0); //color;
 			}
 		"
 	}

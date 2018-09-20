@@ -83,10 +83,16 @@ function Unit.Patch(self, other_unit)
 		other_unit.settings.link.libs:Add("d3d12")
 		other_unit.settings.link.libs:Add("dxguid")
 		other_unit.settings.link.libs:Add("dxgi")
+		other_unit.settings.link.libs:Add("dxcompiler")
+		other_unit.settings.link.libs:Add("fallbacklayer")
+		other_unit.settings.link.libpath:Add("C:\\Code\\DXRSDK\\lib")
 
 		other_unit.settings.dll.libs:Add("d3d12")
 		other_unit.settings.dll.libs:Add("dxguid")
 		other_unit.settings.dll.libs:Add("dxgi")
+		other_unit.settings.dll.libs:Add("dxcompiler")
+		other_unit.settings.dll.libs:Add("fallbacklayer")
+		other_unit.settings.dll.libpath:Add("C:\\Code\\DXRSDK\\lib")
 
 		other_unit.settings.link.libpath:Add("C:\\VulkanSDK\\1.1.70.1\\Source\\lib")
 		other_unit.settings.dll.libpath:Add("C:\\VulkanSDK\\1.1.70.1\\Source\\lib")
@@ -115,6 +121,7 @@ function Unit.Build(self)
 	if target.family == "windows" or target.platform == "linux" then
 		table.insert(graphics_src, PathJoin(self.path, "src/render_vulkan.cpp"))
 		self.settings.cc.includes:Add("C:\\VulkanSDK\\1.1.70.1\\Include")
+		self.settings.cc.includes:Add("C:\\Code\\DXRSDK\\include")
 	end
 
 	if target.family == "windows" then

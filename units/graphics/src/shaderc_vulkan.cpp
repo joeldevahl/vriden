@@ -135,12 +135,14 @@ bool compile_shader_vulkan(shader_intermediate_t* shader_intermediate, shader_da
 	shader_data->variants.data = variants;
 
 	std::string common_code = shader_intermediate->common_code;
+	/*
 	for (int i = 0; i < SHADER_FREQUENCY_MAX; ++i)
 	{
 		common_code += "\n\n";
 		common_code += constant_buffer_code[i];
 		common_code += "\n\n";
 	}
+	*/
 
 	shaderc_compiler_t compiler = shaderc_compiler_initialize();
 

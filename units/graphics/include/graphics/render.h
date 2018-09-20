@@ -43,7 +43,10 @@ typedef enum render_backend_t
 
 typedef enum render_format_t
 {
-	RENDER_FORMAT_
+	RENDER_FORMAT_NONE = 0,
+    RENDER_FORMAT_R8G8B8A8_UNORM,
+    RENDER_FORMAT_R8G8B8A8_SRGB,
+    RENDER_FORMAT_D32_FLOAT_S8X24_UINT,
 } render_format_t;
 
 typedef enum render_target_size_mode_t {
@@ -65,6 +68,7 @@ typedef enum render_store_op_t {
 typedef enum render_command_type_t
 {
 	RENDER_COMMAND_DRAW = 0,
+	RENDER_COMMAND_DISPATCH_RAYS,
 } render_command_type_t;
 
 /******************************************************************************\
@@ -113,15 +117,6 @@ typedef struct render_view_create_info_t
 	render_view_data_t initial_data;
 } render_view_create_info_t;
 
-typedef struct render_target_t
-{
-	const char* name;
-	render_target_size_mode_t size_mode;
-	float width;
-	float height;
-	uint32_t format; // TODO: enum
-} render_target_t;
-
 typedef union render_clear_color_value_t {
     float float32[4];
     int32_t int32[4];
@@ -138,12 +133,21 @@ typedef union render_clear_value_t {
     render_clear_depth_stencil_value_t depth_stencil;
 } render_clear_value_t;
 
+typedef struct render_target_t
+{
+	const char* name;
+	render_target_size_mode_t size_mode;
+	float width;
+	float height;
+	render_format_t format;
+	render_clear_value_t clear_value;
+} render_target_t;
+
 typedef struct render_attachment_t
 {
 	const char* name; // TODO: better identification? render to persistent texture?
     render_load_op_t  load_op;
     render_store_op_t store_op;
-	render_clear_value_t clear_value;
 } render_attachment_t;
 
 typedef struct render_command_t
@@ -155,6 +159,10 @@ typedef struct render_command_t
 		{
 			char dummy; // currently draws everything...
 		} draw;
+		struct
+		{
+			render_shader_id_t shader_id;
+		} dispatch_rays;
 	};
 } render_command_t;
 

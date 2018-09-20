@@ -24,6 +24,8 @@ static void render_vulkan_filter_layer_strings(const scoped_array_t<T>& src, sco
 
 static void render_vulkan_create_instance(render_vulkan_t* render)
 {
+	_putenv("DISABLE_VK_LAYER_VALVE_steam_overlay_1=1");
+
 	uint32_t num_available_instance_layers = 0;
 	VkResult res = vkEnumerateInstanceLayerProperties(&num_available_instance_layers, nullptr);
 	ASSERT(res == VK_SUCCESS, "Failed to get instance layer count");
@@ -54,7 +56,7 @@ static void render_vulkan_create_instance(render_vulkan_t* render)
 	app_info.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
 	app_info.pEngineName = "vriden";
 	app_info.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-	app_info.apiVersion = VK_API_VERSION_1_1;
+	app_info.apiVersion = VK_API_VERSION_1_0;
 
 	VkInstanceCreateInfo create_info = {};
 	create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -546,12 +548,19 @@ void render_vulkan_destroy(render_vulkan_t* render)
 	render_vulkan_destroy_debug_report(render);
 	render_vulkan_destroy_instance(render);
 
+	ASSERT(render->views.empty());
 	render->views.destroy(render->allocator);
+	ASSERT(render->scripts.empty());
 	render->scripts.destroy(render->allocator);
+	ASSERT(render->textures.empty());
 	render->textures.destroy(render->allocator);
+	ASSERT(render->shaders.empty());
 	render->shaders.destroy(render->allocator);
+	ASSERT(render->materials.empty());
 	render->materials.destroy(render->allocator);
+	ASSERT(render->meshes.empty());
 	render->meshes.destroy(render->allocator);
+	ASSERT(render->instances.empty());
 	render->instances.destroy(render->allocator);
 
 	ALLOCATOR_DELETE(render->allocator, render_vulkan_t, render);
@@ -615,7 +624,36 @@ render_result_t render_vulkan_script_create(render_vulkan_t* render, const rende
 		{
 			dst_pass->has_depth_stencil_attachment = false;
 		}
+		/*
+		VkAttachmentDescription color_attachment = {};
+		color_attachment.format = render->swap_chain_image_format;
+		color_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
+		color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		color_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		color_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		color_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		color_attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
+		VkAttachmentReference color_attachment_ref = {};
+		color_attachment_ref.attachment = 0;
+		color_attachment_ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+		VkSubpassDescription subpass = {};
+		subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+		subpass.colorAttachmentCount = 1;
+		subpass.pColorAttachments = &color_attachment_ref;
+
+		VkRenderPassCreateInfo render_pass_info = {};
+		render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+		render_pass_info.attachmentCount = 1;
+		render_pass_info.pAttachments = &color_attachment;
+		render_pass_info.subpassCount = 1;
+		render_pass_info.pSubpasses = &subpass;
+
+		VkResult res = vkCreateRenderPass(render->device, &render_pass_info, nullptr, &dst_pass->render_pass);
+		ASSERT(res == VK_SUCCESS, "Failed to create render pass");
+		*/
 		dst_pass->num_commands = src_pass->num_commands;
 		dst_pass->commands = ALLOCATOR_ALLOC_ARRAY(render->allocator, src_pass->num_commands, render_command_t);
 		for (size_t c = 0; c < src_pass->num_commands; ++c)
@@ -722,16 +760,33 @@ render_result_t render_vulkan_shader_create(render_vulkan_t* render, const shade
 
 				stages.grow_and_append(stage_info);
 			}
+			else
+			{
+				variant->shader_modules[stage] = VK_NULL_HANDLE;
+			}
 		}
+		VkVertexInputBindingDescription vertex_binding_description =
+		{
+			0,
+			1,
+			VK_VERTEX_INPUT_RATE_VERTEX,
+		};
+		VkVertexInputAttributeDescription vertex_attribute_description =
+		{
+			0,
+			0, 
+			VK_FORMAT_R32G32B32A32_SFLOAT,
+			0,
+		};
 		VkPipelineVertexInputStateCreateInfo vertex_input_state =
 		{
 			VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
 			nullptr,
 			0,
-			0,
-			nullptr,
-			0,
-			nullptr,
+			1,
+			&vertex_binding_description,
+			1,
+			&vertex_attribute_description,
 		};
 
 		VkPipelineInputAssemblyStateCreateInfo input_assembly_state =
@@ -892,6 +947,14 @@ render_result_t render_vulkan_shader_create(render_vulkan_t* render, const shade
 void render_vulkan_shader_destroy(render_vulkan_t* render, render_shader_id_t shader_id)
 {
 	render_vulkan_shader_t* shader = render->shaders.handle_to_pointer(shader_id);
+	for (int i = 0; i < shader->num_variants; ++i)
+	{
+		for (int stage = 0; stage < SHADER_STAGE_MAX; ++stage)
+		{
+			vkDestroyShaderModule(render->device, shader->variants[i].shader_modules[stage], nullptr);
+		}
+		vkDestroyPipeline(render->device, shader->variants[i].pipeline, nullptr);
+	}
 	ALLOCATOR_FREE(render->allocator, shader->variants);
 	ALLOCATOR_FREE(render->allocator, shader->properties);
 	for (int i = 0; i < SHADER_FREQUENCY_MAX; ++i)
@@ -956,7 +1019,7 @@ void render_vulkan_material_destroy(render_vulkan_t* render, render_material_id_
 
 	for (int icb = 0; icb < SHADER_FREQUENCY_MAX; ++icb)
 	{
-		if (material->constant_buffers[icb] == nullptr)
+		if (material->constant_buffers[icb] != nullptr)
 		{
 			material->shader->constant_buffers[icb].pool.free_handle(material->constant_buffer_ids[icb]);
 			ALLOCATOR_FREE(render->allocator, material->constant_buffers[icb]);
@@ -1033,28 +1096,36 @@ void render_vulkan_kick_render(render_vulkan_t* render, render_view_id_t /*view_
 	VkCommandPool command_pool = render->command_pools[image_index];
 	vkResetCommandPool(render->device, command_pool, 0);
 
-	VkCommandBufferAllocateInfo allocInfo = {};
-	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	allocInfo.commandPool = command_pool;
-	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	allocInfo.commandBufferCount = 1;
+	VkCommandBufferAllocateInfo alloc_info;
+	alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	alloc_info.pNext = nullptr;
+	alloc_info.commandPool = command_pool;
+	alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	alloc_info.commandBufferCount = 1;
 
 	VkCommandBuffer command_buffer;
-	vkAllocateCommandBuffers(render->device, &allocInfo, &command_buffer);
+	vkAllocateCommandBuffers(render->device, &alloc_info, &command_buffer);
 
-	VkCommandBufferBeginInfo begin_info = {};
+	VkCommandBufferBeginInfo begin_info;
 	begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	begin_info.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+	begin_info.pNext = nullptr;
+	begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+	begin_info.pInheritanceInfo = nullptr;
 	vkBeginCommandBuffer(command_buffer, &begin_info);
 
-	VkRenderPassBeginInfo render_pass_info = {};
+	static float t = 0.0f;
+	if (t > 1.0f)
+		t = 0.0f;
+	VkClearValue clearColor = { 0.3f, 0.3f, 0.6f * t, 1.0f };
+	t += 0.01f;
+
+	VkRenderPassBeginInfo render_pass_info;
 	render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+	render_pass_info.pNext = nullptr;
 	render_pass_info.renderPass = render->temp_render_pass;
 	render_pass_info.framebuffer = render->swap_chain_framebuffers[image_index];
 	render_pass_info.renderArea.offset = { 0, 0 };
 	render_pass_info.renderArea.extent = render->extent;
-
-	VkClearValue clearColor = { 0.0f, 0.0f, 0.0f, 1.0f };
 	render_pass_info.clearValueCount = 1;
 	render_pass_info.pClearValues = &clearColor;
 
@@ -1066,8 +1137,9 @@ void render_vulkan_kick_render(render_vulkan_t* render, render_view_id_t /*view_
 	ASSERT(res == VK_SUCCESS);
 
 	VkPipelineStageFlags pipeline_stage_flags = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
-	VkSubmitInfo submit_info = {};
+	VkSubmitInfo submit_info;
 	submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submit_info.pNext = nullptr;
 	submit_info.waitSemaphoreCount = 1u;
 	submit_info.pWaitSemaphores = &render->backbuffer_semaphore;
 	submit_info.pWaitDstStageMask = &pipeline_stage_flags;
@@ -1078,8 +1150,9 @@ void render_vulkan_kick_render(render_vulkan_t* render, render_view_id_t /*view_
 	res = vkQueueSubmit(render->graphics_queue, 1, &submit_info, render->frame_fences[image_index]);
 	ASSERT(res == VK_SUCCESS, "Failed to submit command buffer");
 
-	VkPresentInfoKHR present_info = {};
+	VkPresentInfoKHR present_info;
 	present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+	present_info.pNext = nullptr;
 	present_info.waitSemaphoreCount = 1;
 	present_info.pWaitSemaphores = &render->present_semaphore;
 	present_info.swapchainCount = 1;

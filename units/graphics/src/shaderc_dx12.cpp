@@ -46,6 +46,7 @@ static int compile_program_dx12(const std::string& code, int stage, uint8_t** ou
 							&error);
     if(FAILED(hr))
     {
+		printf("%s\n", code.c_str());
         if(error != NULL)
 		{
 			printf("HLSL compiler failed with message:\n%s", (char*)error->GetBufferPointer());
@@ -154,12 +155,14 @@ bool compile_shader_dx12(shader_intermediate_t* shader_intermediate, shader_data
 	shader_data->variants.data = variants;
 
 	std::string common_code = shader_intermediate->common_code;
+	/*
 	for (int i = 0; i < SHADER_FREQUENCY_MAX; ++i)
 	{
 		common_code += "\n\n";
 		common_code += constant_buffer_code[i];
 		common_code += "\n\n";
 	}
+	*/
 
 	for (int i = 0; i < SHADER_STAGE_MAX; ++i)
 	{
