@@ -1,4 +1,4 @@
-RaytracingAccelerationStructure gRtScene : register(t0);
+RaytracingAccelerationStructure Scene : register(u0, space0);
 RWTexture2D<float4> gOutput : register(u0);
 
 float3 linearToSrgb(float3 c)
@@ -15,7 +15,7 @@ float3 linearToSrgb(float3 c)
 void rayGen()
 {  
     uint2 launchIndex = DispatchRaysIndex();
-    float3 col = linearToSrgb(float3(0.4, 0.6, 0.2));
+    float3 col = linearToSrgb(float3(launchIndex.x * (1.0/1280.0), launchIndex.y * (1.0f/720.0), 0.0));
     gOutput[launchIndex] = float4(col, 1);
 }
 

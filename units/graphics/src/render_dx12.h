@@ -301,12 +301,17 @@ struct render_dx12_t : public render_t
 	D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO dxr_as_prebuild_info;
 
 	ID3D12Resource* dxr_top_level_as;
+	WRAPPED_GPU_POINTER dxr_top_level_as_wgp;
+
 	ID3D12Resource* dxr_bottom_level_as;
 	ID3D12RaytracingFallbackStateObject* dxr_pipeline_state;
-	ID3D12RootSignature* dxr_empty_root_signature;
+	ID3D12RootSignature* dxr_global_root_signature;
 	ID3D12Resource* dxr_shader_table;
 
 	uint32_t dxr_shader_table_entry_size;
+
+	ID3D12Resource* dxr_rayout_res;
+	D3D12_GPU_DESCRIPTOR_HANDLE dxr_rayout_uav;
 };
 
 struct render_dx12_indirect_argument_t

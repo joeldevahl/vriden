@@ -85,13 +85,13 @@ static void render_dx12_push_delay_delete(render_dx12_t* render, IUnknown* resou
 	frame.delay_delete_queue.append(resource);
 }
 
-static WRAPPED_GPU_POINTER CreateFallbackWrappedPointer(render_dx12_t* render, ID3D12Resource* resource, UINT bufferNumElements)
+static WRAPPED_GPU_POINTER CreateFallbackWrappedPointer(render_dx12_t* render, ID3D12Resource* resource, UINT64 bufferNumElements)
 {
 	D3D12_UNORDERED_ACCESS_VIEW_DESC rawBufferUavDesc = {};
 	rawBufferUavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
 	rawBufferUavDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_RAW;
 	rawBufferUavDesc.Format = DXGI_FORMAT_R32_TYPELESS;
-	rawBufferUavDesc.Buffer.NumElements = bufferNumElements;
+	rawBufferUavDesc.Buffer.NumElements = (UINT32)bufferNumElements;
 
 	// Only compute fallback requires a valid descriptor index when creating a wrapped pointer.
 	UINT descriptorHeapIndex = 0;
@@ -1199,18 +1199,34 @@ static void render_dx12_do_dispatch_rays(render_dx12_t* render, render_dx12_pass
 	raytraceDesc.HitGroupTable.SizeInBytes = render->dxr_shader_table_entry_size;
 
 	// Bind the empty root signature
-	ctx.command_list->SetComputeRootSignature(render->dxr_empty_root_signature);
+	ctx.command_list->SetComputeRootSignature(render->dxr_global_root_signature);
 
 	ID3D12DescriptorHeap* heaps[] = { render->cbv_srv_uav_heap };
 	ctx.dxr_command_list->SetDescriptorHeaps(ARRAY_LENGTH(heaps), heaps);
 
-	ctx.command_list->SetComputeRootDescriptorTable(GlobalRootSignatureParams::VertexBuffersSlot, m_indexBuffer.gpuDescriptorHandle);
-	ctx.command_list->SetComputeRootDescriptorTable(GlobalRootSignatureParams::OutputViewSlot, m_raytracingOutputResourceUAVGpuDescriptor);
+	//ctx.command_list->SetComputeRootDescriptorTable(GlobalRootSignatureParams::VertexBuffersSlot, m_indexBuffer.gpuDescriptorHandle);
 
-	ctx.dxr_command_list->SetTopLevelAccelerationStructure(GlobalRootSignatureParams::AccelerationStructureSlot, m_fallbackTopLevelAccelerationStructurePointer);
+	ctx.command_list->SetComputeRootDescriptorTable(0, render->dxr_rayout_uav);
+
+	ctx.dxr_command_list->SetTopLevelAccelerationStructure(1, render->dxr_top_level_as_wgp);
 
 	// Dispatch
 	ctx.dxr_command_list->DispatchRays(render->dxr_pipeline_state, &raytraceDesc);
+
+	// Get current backbuffer
+	render_dx12_t::backbuffer_data_t& backbuffer = render->backbuffer[ctx.backbuffer_index];
+
+	scoped_array_t<D3D12_RESOURCE_BARRIER> barriers(render->allocator);
+	render_dx12_push_barrier(render, barriers, backbuffer.resource, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_DEST);
+	render_dx12_push_barrier(render, barriers, render->dxr_rayout_res, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
+	ctx.command_list->ResourceBarrier((UINT)barriers.length(), barriers.begin());
+	barriers.clear();
+
+	ctx.command_list->CopyResource(backbuffer.resource, render->dxr_rayout_res);
+
+	render_dx12_push_barrier(render, barriers, backbuffer.resource, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_RENDER_TARGET);
+	render_dx12_push_barrier(render, barriers, render->dxr_rayout_res, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	ctx.command_list->ResourceBarrier((UINT)barriers.length(), barriers.begin());
 }
 
 static void render_dx12_do_pass(render_dx12_t* render, render_dx12_pass_context_t& ctx, render_dx12_view_t* view, render_dx12_script_t* script, size_t ip)
@@ -1398,6 +1414,7 @@ static void render_dx12_create_top_level_as(render_dx12_t* render)
 	render_dx12_push_delay_delete(render, instance_desc_buffer);
 
 	render->dxr_top_level_as = result;
+	render->dxr_top_level_as_wgp = CreateFallbackWrappedPointer(render, render->dxr_top_level_as, info.ResultDataMaxSizeInBytes / sizeof(UINT32));
 }
 
 void render_dx12_create_as(render_dx12_t* render)
@@ -1405,6 +1422,18 @@ void render_dx12_create_as(render_dx12_t* render)
 	render_dx12_create_bottom_level_as(render);
 	render_dx12_create_top_level_as(render);
 }
+
+#include <string>
+#include <vector>
+template<typename BlobType>
+inline std::string convertBlobToString(BlobType* pBlob)
+{
+	std::vector<char> infoLog(pBlob->GetBufferSize() + 1);
+	memcpy(infoLog.data(), pBlob->GetBufferPointer(), pBlob->GetBufferSize());
+	infoLog[pBlob->GetBufferSize()] = 0;
+	return std::string(infoLog.data());
+}
+
 
 IDxcBlob* render_dx12_compile_library(render_dx12_t* render, const char* filename, const WCHAR* target_string)
 {
@@ -1422,6 +1451,7 @@ IDxcBlob* render_dx12_compile_library(render_dx12_t* render, const char* filenam
 	hr = library->CreateBlobWithEncodingFromPinned((LPBYTE)shader_text, (UINT32)strlen(shader_text), 0, &text_blob);
 	ASSERT(SUCCEEDED(hr));
 
+
 	IDxcOperationResult* result;
 	hr = compiler->Compile(text_blob, L"foo", L"", target_string, nullptr, 0, nullptr, 0, nullptr, &result);
 	ASSERT(SUCCEEDED(hr));
@@ -1431,9 +1461,10 @@ IDxcBlob* render_dx12_compile_library(render_dx12_t* render, const char* filenam
 	{
 		IDxcBlobEncoding* error;
 		result->GetErrorBuffer(&error);
+		std::string log = convertBlobToString(error);
+		OutputDebugStringA(log.c_str());
+
 		BREAKPOINT();
-		//std::string log = convertBlobToString(pError.GetInterfacePtr());
-		//msgBox("Compiler error:\n" + log);
 		return nullptr;
 	}
 
@@ -1455,7 +1486,12 @@ static ID3D12RootSignature* render_dx12_create_root_signature(render_dx12_t* ren
     ID3DBlob* signature_blob = nullptr;
     ID3DBlob* error_blob = nullptr;
     HRESULT hr = render->dxr_device->D3D12SerializeRootSignature(&desc, D3D_ROOT_SIGNATURE_VERSION_1, &signature_blob, &error_blob);
-	ASSERT(SUCCEEDED(hr));
+	if (FAILED(hr))
+	{
+		std::string log = convertBlobToString(error_blob);
+		OutputDebugStringA(log.c_str());
+		BREAKPOINT();
+	}
 
     ID3D12RootSignature* root_signature = nullptr;
     hr = render->dxr_device->CreateRootSignature(0, signature_blob->GetBufferPointer(), signature_blob->GetBufferSize(), IID_PPV_ARGS(&root_signature));
@@ -1500,31 +1536,13 @@ static void render_dx12_create_pipeline(render_dx12_t* render)
 	hit_group_subobject.Type = D3D12_STATE_SUBOBJECT_TYPE_HIT_GROUP;
 	hit_group_subobject.pDesc = &hit_group_desc;
 
-	D3D12_DESCRIPTOR_RANGE ranges[2] = {};
-	ranges[0].BaseShaderRegister = 0;
-	ranges[0].NumDescriptors = 1;
-	ranges[0].RegisterSpace = 0;
-	ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
-	ranges[0].OffsetInDescriptorsFromTableStart = 0;
-	ranges[1].BaseShaderRegister = 0;
-	ranges[1].NumDescriptors = 1;
-	ranges[1].RegisterSpace = 0;
-	ranges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-	ranges[1].OffsetInDescriptorsFromTableStart = 1;
 
-	D3D12_ROOT_PARAMETER root_params[1] = {};
-	root_params[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-	root_params[0].DescriptorTable.NumDescriptorRanges = ARRAY_LENGTH(ranges);
-	root_params[0].DescriptorTable.pDescriptorRanges = ranges;
-
-	D3D12_ROOT_SIGNATURE_DESC root_signature_desc = {};
-	root_signature_desc.NumParameters = ARRAY_LENGTH(root_params);
-	root_signature_desc.pParameters = root_params;
-	root_signature_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
+	D3D12_ROOT_SIGNATURE_DESC rgs_root_signature_desc = {};
+	rgs_root_signature_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
 
 	size_t rgs_root_signature_index = curr_subobject++;
 	D3D12_STATE_SUBOBJECT& rgs_root_signature_subobject = subobjects[rgs_root_signature_index];
-	ID3D12RootSignature* rgs_root_signature = render_dx12_create_root_signature(render, root_signature_desc); // TODO: release?
+	ID3D12RootSignature* rgs_root_signature = render_dx12_create_root_signature(render, rgs_root_signature_desc); // TODO: release?
 	rgs_root_signature_subobject.pDesc = &rgs_root_signature;
 	rgs_root_signature_subobject.Type = D3D12_STATE_SUBOBJECT_TYPE_LOCAL_ROOT_SIGNATURE;
 
@@ -1582,13 +1600,30 @@ static void render_dx12_create_pipeline(render_dx12_t* render)
 	pipeline_config_subobject.Type = D3D12_STATE_SUBOBJECT_TYPE_RAYTRACING_PIPELINE_CONFIG;
 	pipeline_config_subobject.pDesc = &pipeline_config;
 
+	D3D12_DESCRIPTOR_RANGE ranges[1] = {};
+	ranges[0].BaseShaderRegister = 0;
+	ranges[0].NumDescriptors = 1;
+	ranges[0].RegisterSpace = 0;
+	ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+	ranges[0].OffsetInDescriptorsFromTableStart = 0;
+
+	D3D12_ROOT_PARAMETER root_params[2] = {};
+	root_params[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	root_params[0].DescriptorTable.NumDescriptorRanges = 1;
+	root_params[0].DescriptorTable.pDescriptorRanges = &ranges[0];
+	root_params[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+	root_params[1].Descriptor.RegisterSpace = 0;
+	root_params[1].Descriptor.ShaderRegister = 0;
+
 	D3D12_ROOT_SIGNATURE_DESC global_root_signature_desc = {};
+	global_root_signature_desc.NumParameters = ARRAY_LENGTH(root_params);
+	global_root_signature_desc.pParameters = root_params;
 
 	D3D12_STATE_SUBOBJECT& global_root_signature_subobject = subobjects[curr_subobject++];
 	ID3D12RootSignature* global_root_signature = render_dx12_create_root_signature(render, global_root_signature_desc); // TODO: release?
 	global_root_signature_subobject.pDesc = &global_root_signature;
 	global_root_signature_subobject.Type = D3D12_STATE_SUBOBJECT_TYPE_ROOT_SIGNATURE;
-	render->dxr_empty_root_signature = global_root_signature;
+	render->dxr_global_root_signature = global_root_signature;
 
 	ASSERT(curr_subobject <= ARRAY_LENGTH(subobjects));
 	D3D12_STATE_OBJECT_DESC state_object_desc = {};
@@ -1693,6 +1728,37 @@ void render_dx12_kick_render(render_dx12_t* render, render_view_id_t view_id, re
 
 		// Unmap
 		render->dxr_shader_table->Unmap(0, nullptr);
+
+		D3D12_RESOURCE_DESC rayout_desc = {};
+		rayout_desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+		rayout_desc.Alignment = 0; // ?
+		rayout_desc.Width = render->width;
+		rayout_desc.Height = render->height;
+		rayout_desc.DepthOrArraySize = 1;
+		rayout_desc.MipLevels = 1;
+		rayout_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		rayout_desc.SampleDesc.Count = 1;
+		rayout_desc.SampleDesc.Quality = 1;
+		rayout_desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+		rayout_desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+
+		D3D12_HEAP_PROPERTIES defaultHeapProperties = {};
+		defaultHeapProperties.Type = D3D12_HEAP_TYPE_DEFAULT;
+
+		hr = render->device->CreateCommittedResource(&defaultHeapProperties, D3D12_HEAP_FLAG_NONE, &rayout_desc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, IID_PPV_ARGS(&render->dxr_rayout_res));
+		ASSERT(SUCCEEDED(hr));
+
+		uint32_t uav_offset = render->cbv_srv_uav_pool.alloc(1);
+
+		D3D12_CPU_DESCRIPTOR_HANDLE uavDescriptorHandle = render->cbv_srv_uav_heap->GetCPUDescriptorHandleForHeapStart();
+		uavDescriptorHandle.ptr += uav_offset * render->cbv_srv_uav_size;
+
+		D3D12_UNORDERED_ACCESS_VIEW_DESC UAVDesc = {};
+		UAVDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+		render->device->CreateUnorderedAccessView(render->dxr_rayout_res, nullptr, &UAVDesc, uavDescriptorHandle);
+
+		render->dxr_rayout_uav = render->cbv_srv_uav_heap->GetGPUDescriptorHandleForHeapStart();
+		render->dxr_rayout_uav.ptr += uav_offset * render->cbv_srv_uav_size;
 	}
 
 	// Start uploading instance and view data for everything
