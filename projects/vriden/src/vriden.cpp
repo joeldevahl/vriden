@@ -176,9 +176,13 @@ int application_main(application_t* application)
 			"back buffer",
 			RENDER_LOAD_OP_CLEAR,
 			RENDER_STORE_OP_STORE,
-			{ 0.3f, 0.3f, 0.6f, 1.0f },
+			// initialize color below
 		},
 	};
+	color_attachments[0].clear_value.color.float32[0] = 0.3f;
+	color_attachments[0].clear_value.color.float32[1] = 0.3f;
+	color_attachments[0].clear_value.color.float32[2] = 0.6f;
+	color_attachments[0].clear_value.color.float32[3] = 1.0f;
 
 	render_attachment_t depth_attachment =
 	{
