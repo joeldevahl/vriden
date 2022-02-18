@@ -100,7 +100,7 @@ int main(int argc, const char** argv)
 	shader_data_null_t shader_data_null = {};
 	shader_data.data_null = &shader_data_null;
 
-#if defined(FAMILY_WINDOWS) && 0
+#if defined(FAMILY_WINDOWS)
 	bool compile_shader_dx12(shader_intermediate_t* shader_intermediate, shader_data_dx12_t* shader_data);
 	shader_data_dx12_t shader_data_dx12 = {};
 	if(compile_shader_dx12(shader_intermediate, &shader_data_dx12))
@@ -112,6 +112,13 @@ int main(int argc, const char** argv)
 	shader_data_vulkan_t shader_data_vulkan = {};
 	if(compile_shader_vulkan(shader_intermediate, &shader_data_vulkan))
 		shader_data.data_vulkan = &shader_data_vulkan;
+#endif
+
+#if defined(PLATFORM_OSX)
+	bool compile_shader_metal(shader_intermediate_t* shader_intermediate, shader_data_metal_t* shader_data);
+	shader_data_metal_t shader_data_metal = {};
+	if(compile_shader_metal(shader_intermediate, &shader_data_metal))
+		shader_data.data_metal = &shader_data_metal;
 #endif
 
 	err = dl_util_store_to_file(

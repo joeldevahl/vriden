@@ -152,6 +152,10 @@ function Unit.Build(self)
 		table.insert(shaderc_src, PathJoin(self.path, "src/shaderc_vulkan.cpp"))
 	end
 
+	if target.platform == "osx" then
+		table.insert(shaderc_src, PathJoin(self.path, "src/shaderc_metal.cpp"))
+	end
+
 	local shaderc_obj = Compile(shaderc_settings, shaderc_src)
 	local shaderc = Link(shaderc_settings, "shaderc", shaderc_obj)
 	self:AddProduct(shaderc)

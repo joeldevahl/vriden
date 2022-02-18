@@ -79,6 +79,11 @@
 				{ "name" : "variants", "type" : "shader_variant_data_vulkan_t[]" }
 			]
 		},
+		"shader_data_metal_t" : {
+			"members" : [
+				{ "name" : "dummy", "type" : "uint8" }	
+			]
+		},
 		"shader_data_null_t" : {
 			"members" : [
 				{ "name" : "dummy", "type" : "uint8" }	
@@ -88,7 +93,8 @@
 			"members" : [
 				{ "name" : "data_null", "type" : "shader_data_null_t*" },
 				{ "name" : "data_dx12", "type" : "shader_data_dx12_t*" },
-				{ "name" : "data_vulkan", "type" : "shader_data_vulkan_t*" }
+				{ "name" : "data_vulkan", "type" : "shader_data_vulkan_t*" },
+				{ "name" : "data_metal", "type" : "shader_data_metal_t*" }
 			]
 		}
 	}
