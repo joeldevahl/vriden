@@ -2,6 +2,11 @@
 
 @REM Check for Visual Studio
 call set "VSPATH="
+if exist "%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" ( if not defined VSPATH (
+	for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.Component.MSBuild -property installationPath`) do (
+		set VSPATH=%%i
+	)
+) )
 if defined VS140COMNTOOLS ( if not defined VSPATH (
 	call set "VSPATH=%%VS140COMNTOOLS%%"
 ) )
@@ -37,10 +42,19 @@ if exist "%VSPATH%..\..\vc\vcvarsall.bat" (
 	call "%%VSPATH%%..\..\vc\vcvarsall.bat" amd64
 	goto compile
 )
+if exist "%VSPATH%\VC\Auxiliary\Build\vcvarsall.bat" (
+	call "%%VSPATH%%\VC\Auxiliary\Build\vcvarsall.bat" x64
+	goto compile
+)
 
 echo Unable to set up the environment
 pause
 exit
 
 :compile
+
+if not exist "local\build\winx64" (
+    mkdir local\build\winx64
+)
+
 bam -n %*
